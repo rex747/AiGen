@@ -7,73 +7,32 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.unit.dp
 import androidx.constraintlayout.compose.ConstraintLayout
-import com.example.myapplication.viewmodel.MainViewModel
 import com.example.myapplication.R
 import androidx.compose.foundation.Image
+import androidx.compose.ui.Alignment
 import androidx.compose.ui.text.style.TextAlign
-
 
 @Composable
 fun HomeScreen(
-    viewModel: MainViewModel,
-    onNavigateToSkills: () -> Unit,
-    onNavigateToCategories: () -> Unit,
-    onNavigateToGenerated: () -> Unit
+    // Навигационные колбэки
+    onNavigateToCatalog: () -> Unit,
+    onNavigateToCreateAgent: () -> Unit,
+    onNavigateToInvoke: () -> Unit,
+    onNavigateToOrchestrate: () -> Unit
 ) {
-    val isLoading by viewModel.isLoading.collectAsState()
-    var showGenerationDialog by remember { mutableStateOf(false) }
+    ConstraintLayout(modifier = Modifier.fillMaxSize()) {
+        val (logo, title, buttonColumn) = createRefs()
 
-    if (showGenerationDialog) {
-        AlertDialog(
-            onDismissRequest = { showGenerationDialog = false },
-            title = { Text("Выберите тип агента") },
-            text = { Text("Какого агента вы хотите сгенерировать?") },
-            confirmButton = {
-                TextButton(onClick = {
-                    showGenerationDialog = false
-                    // Базовый агент – без дополнительных навыков
-                    viewModel.clearExtraSkills()
-                    viewModel.generateCode()
-                    onNavigateToGenerated()
-                }) {
-                    Text("Базовый AI‑агент")
-                }
-            },
-            dismissButton = {
-                TextButton(onClick = {
-                    showGenerationDialog = false
-                    // Переход на выбор навыков
-                    onNavigateToCategories()
-                }) {
-                    Text("Агент с навыками")
-                }
-            }
-        )
-    }
-
-    // Используем ConstraintLayout для точного позиционирования
-    ConstraintLayout(
-        modifier = Modifier.fillMaxSize()
-    ) {
-        // Создаём ссылки
-        val (logo, title, buttonRow) = createRefs()
-
-        // Логотип (находится над текстом)
         Image(
             painter = painterResource(id = R.drawable.logo),
             contentDescription = "Логотип",
             modifier = Modifier.constrainAs(logo) {
-                bottom.linkTo(
-                    anchor = title.top,
-                    margin = 24.dp // Отступ от верхнего края текста
-                )
+                bottom.linkTo(title.top, margin = 24.dp)
                 start.linkTo(parent.start)
                 end.linkTo(parent.end)
             }
         )
 
-
-        // Текст – строго по центру экрана
         Text(
             text = "AI‑фабрика:\nгенератор AI-агентов",
             style = MaterialTheme.typography.headlineMedium,
@@ -84,31 +43,41 @@ fun HomeScreen(
             }
         )
 
-        // Блок кнопок – под текстом
-        Row(
-            modifier = Modifier.constrainAs(buttonRow) {
-                top.linkTo(
-                    anchor = title.bottom,
-                    margin = 32.dp // Отступ от нижнего края текста
-                )
+        // Блок кнопок – вертикальный столбец под текстом
+        Column(
+            modifier = Modifier.constrainAs(buttonColumn) {
+                top.linkTo(title.bottom, margin = 32.dp)
                 start.linkTo(parent.start)
                 end.linkTo(parent.end)
             },
-            horizontalArrangement = Arrangement.spacedBy(16.dp)
+            verticalArrangement = Arrangement.spacedBy(12.dp),
+            horizontalAlignment = Alignment.CenterHorizontally
         ) {
+            // Управление агентами
             Button(
-                onClick = { showGenerationDialog = true },
-                enabled = !isLoading
+                onClick = onNavigateToCatalog,
+                modifier = Modifier.fillMaxWidth(0.8f)
             ) {
-                if (isLoading) {
-                    CircularProgressIndicator(modifier = Modifier.size(18.dp), strokeWidth = 2.dp)
-                    Spacer(modifier = Modifier.width(8.dp))
-                    Text("Генерация...")
-                } else {
-                    Text("Сгенерировать AI-агента")
-                }
+                Text("📋 Каталог агентов")
             }
-
+            Button(
+                onClick = onNavigateToCreateAgent,
+                modifier = Modifier.fillMaxWidth(0.8f)
+            ) {
+                Text("➕ Создать агента")
+            }
+            Button(
+                onClick = onNavigateToInvoke,
+                modifier = Modifier.fillMaxWidth(0.8f)
+            ) {
+                Text("📞 Вызвать агента")
+            }
+            Button(
+                onClick = onNavigateToOrchestrate,
+                modifier = Modifier.fillMaxWidth(0.8f)
+            ) {
+                Text("⚙️ Оркестрация")
+            }
         }
     }
 }

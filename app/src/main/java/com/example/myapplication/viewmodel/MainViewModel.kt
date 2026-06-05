@@ -3,23 +3,209 @@ package com.example.myapplication.viewmodel
 import android.app.Application
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
+import com.example.myapplication.data.AuthRepository
 import com.example.myapplication.data.SkillRepository
-import com.example.myapplication.model.Skill
-import com.example.myapplication.pycode.CodeGenerator
+import com.example.myapplication.model.*
+import com.example.myapplication.model.Agent
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.*
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
+import kotlin.time.Duration.Companion.milliseconds
 
 class MainViewModel(application: Application) : AndroidViewModel(application) {
 
-    // Старое состояние для премиум-навыков (можно удалить, но оставим для обратной совместимости)
-    private val _selectedSkills = MutableStateFlow<List<Skill>>(emptyList())
-    val selectedSkills: StateFlow<List<Skill>> = _selectedSkills
+    // Аутентификация
+    private val _currentUser = MutableStateFlow<User?>(null)
+    val currentUser: StateFlow<User?> = _currentUser
 
-    // Новое состояние для дополнительных навыков (выбранных на экране категорий)
-    private val _extraSkillIds = MutableStateFlow<List<String>>(emptyList())
-    val extraSkillIds: StateFlow<List<String>> = _extraSkillIds
+    private val _authError = MutableStateFlow<String?>(null)
+    val authError: StateFlow<String?> = _authError
+
+    private val _isLoading = MutableStateFlow(false)
+    val isLoading: StateFlow<Boolean> = _isLoading
+
+    private val repository = AuthRepository()
+
+    val isPremium: StateFlow<Boolean> = MutableStateFlow(true)
+
+    // Регистрация / вход
+    fun register(email: String, password: String) {
+        viewModelScope.launch {
+            _isLoading.value = true
+            _authError.value = null
+            val result = withContext(Dispatchers.IO) { repository.register(email, password) }
+            result.fold(
+                onSuccess = { response ->
+                    _currentUser.value = User(email = response.email, token = response.token)
+                },
+                onFailure = { e ->
+                    _authError.value = e.message ?: "Registration error"
+                }
+            )
+            _isLoading.value = false
+        }
+    }
+
+    fun login(email: String, password: String) {
+        viewModelScope.launch {
+            _isLoading.value = true
+            _authError.value = null
+            val result = withContext(Dispatchers.IO) { repository.login(email, password) }
+            result.fold(
+                onSuccess = { response ->
+                    _currentUser.value = User(email = response.email, token = response.token)
+                },
+                onFailure = { e ->
+                    _authError.value = e.message ?: "Login error"
+                }
+            )
+            _isLoading.value = false
+        }
+    }
+
+    fun logout() {
+        // Остановить опрос, если активен
+        pollingJob?.cancel()
+        _currentUser.value = null
+        _agentsCatalog.value = emptyList()
+        _selectedAgentForInvoke.value = null
+        _invokeResult.value = null
+        _orchestrateResult.value = null
+        _orchestrateChain.value = emptyList()
+        _orchestrateTaskId.value = null
+        _orchestrationStatus.value = null
+    }
+
+    // ==================== УПРАВЛЕНИЕ АГЕНТАМИ ====================
+    private val _agentsCatalog = MutableStateFlow<List<Agent>>(emptyList())
+    val agentsCatalog: StateFlow<List<Agent>> = _agentsCatalog
+
+    private val _myAgents = MutableStateFlow<List<Agent>>(emptyList())
+    val myAgents: StateFlow<List<Agent>> = _myAgents
+
+    private val _agentRegistrationSuccess = MutableSharedFlow<Boolean>()
+    val agentRegistrationSuccess: SharedFlow<Boolean> = _agentRegistrationSuccess
+
+    fun loadAgentsCatalog() {
+        viewModelScope.launch {
+            val token = _currentUser.value?.token ?: return@launch
+            _isLoading.value = true
+            val result = withContext(Dispatchers.IO) { repository.listAgents(token) }
+            result.onSuccess { _agentsCatalog.value = it }
+            result.onFailure { _authError.value = it.message }
+            _isLoading.value = false
+        }
+    }
+
+    fun loadMyAgents() {
+        viewModelScope.launch {
+            val token = _currentUser.value?.token ?: return@launch
+            _isLoading.value = true
+            val result = withContext(Dispatchers.IO) { repository.listMyAgents(token) }
+            result.onSuccess { _myAgents.value = it }
+            result.onFailure { _authError.value = it.message }
+            _isLoading.value = false
+        }
+    }
+
+    fun registerAgent(name: String, description: String, skillIds: List<String>) {
+        viewModelScope.launch {
+            val token = _currentUser.value?.token ?: return@launch
+            _isLoading.value = true
+            val request = AgentRegistrationRequest(name, description, skillIds)
+            val result = withContext(Dispatchers.IO) { repository.registerAgent(token, request) }
+            result.onSuccess {
+                _agentRegistrationSuccess.emit(true)
+                loadMyAgents()
+            }
+            result.onFailure { e -> _authError.value = e.message }
+            _isLoading.value = false
+        }
+    }
+
+    // ==================== ВЫЗОВ АГЕНТА ====================
+    private val _selectedAgentForInvoke = MutableStateFlow<Agent?>(null)
+    val selectedAgentForInvoke: StateFlow<Agent?> = _selectedAgentForInvoke
+
+    private val _invokeResult = MutableStateFlow<String?>(null)
+    val invokeResult: StateFlow<String?> = _invokeResult
+
+    fun setSelectedAgent(agent: Agent?) {
+        _selectedAgentForInvoke.value = agent
+        _invokeResult.value = null
+    }
+
+    fun invokeAgent(agentId: String, prompt: String) {
+        viewModelScope.launch {
+            val token = _currentUser.value?.token ?: return@launch
+            _isLoading.value = true
+            val result = withContext(Dispatchers.IO) { repository.invokeAgent(token, agentId, prompt) }
+            result.onSuccess { _invokeResult.value = it }
+            result.onFailure { e -> _authError.value = e.message }
+            _isLoading.value = false
+        }
+    }
+
+    // ==================== ОРКЕСТРАЦИЯ (АСИНХРОННАЯ) ====================
+    private val _orchestrateChain = MutableStateFlow<List<String>>(emptyList())
+    val orchestrateChain: StateFlow<List<String>> = _orchestrateChain
+
+    private val _orchestrateResult = MutableStateFlow<String?>(null)
+    val orchestrateResult: StateFlow<String?> = _orchestrateResult
+
+    private val _orchestrateTaskId = MutableStateFlow<String?>(null)
+    val orchestrateTaskId: StateFlow<String?> = _orchestrateTaskId
+
+    private val _orchestrationStatus = MutableStateFlow<String?>(null)
+    val orchestrationStatus: StateFlow<String?> = _orchestrationStatus
+
+    private var pollingJob: kotlinx.coroutines.Job? = null
+
+    fun addToChain(agentId: String) {
+        _orchestrateChain.update { current -> if (current.contains(agentId)) current else current + agentId }
+    }
+
+    fun removeFromChain(agentId: String) {
+        _orchestrateChain.update { it.filter { id -> id != agentId } }
+    }
+
+    fun clearChain() {
+        _orchestrateChain.value = emptyList()
+        _orchestrateResult.value = null
+        _orchestrateTaskId.value = null
+        _orchestrationStatus.value = null
+    }
+
+    fun runOrchestration(initialPrompt: String) {
+        viewModelScope.launch {
+            val token = _currentUser.value?.token ?: return@launch
+            val chain = _orchestrateChain.value
+            if (chain.isEmpty()) {
+                _authError.value = "Добавьте хотя бы одного агента в цепочку"
+                return@launch
+            }
+            _isLoading.value = true
+            val result = withContext(Dispatchers.IO) {
+                repository.orchestrate(token, chain, initialPrompt)
+            }
+            result.onSuccess { response ->
+                _orchestrateTaskId.value = response.taskId
+                _orchestrationStatus.value = "pending"
+                // Запускаем опрос статуса задачи
+                startPollingTaskStatus(response.taskId)
+            }
+            result.onFailure { e ->
+                _authError.value = e.message
+                _isLoading.value = false
+            }
+        }
+    }
+
+    // ==================== ГЕНЕРАЦИЯ КОДА ====================
+    private val _extraSkillIds = MutableStateFlow<Set<String>>(emptySet())
+    val extraSkillIds: StateFlow<Set<String>> = _extraSkillIds
 
     private val _generatedCode = MutableStateFlow("")
     val generatedCode: StateFlow<String> = _generatedCode
@@ -27,65 +213,78 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
     private val _buildExeScript = MutableStateFlow("")
     val buildExeScript: StateFlow<String> = _buildExeScript
 
-    private val _isLoading = MutableStateFlow(false)
-    val isLoading: StateFlow<Boolean> = _isLoading
+    // Новые состояния
+    private val _requirementsTxt = MutableStateFlow("")
+    val requirementsTxt: StateFlow<String> = _requirementsTxt
 
-    // Поле isPremium оставлено для обратной совместимости (может использоваться где-то ещё)
-    val isPremium: StateFlow<Boolean> = MutableStateFlow(true) // все навыки теперь бесплатны
+    private val _heavySkillsWarning = MutableStateFlow<List<String>>(emptyList())
+    val heavySkillsWarning: StateFlow<List<String>> = _heavySkillsWarning
 
-    val availableSkills: List<Skill> = SkillRepository.getAllSkills()
-
-    fun toggleSkill(skill: Skill) {
-        _selectedSkills.update { current ->
-            if (current.any { it.id == skill.id }) {
-                current.filter { it.id != skill.id }
-            } else {
-                current + skill
-            }
-        }
-    }
-
-    // Работа с дополнительными навыками
     fun toggleExtraSkill(skillId: String) {
         _extraSkillIds.update { current ->
             if (current.contains(skillId)) current - skillId else current + skillId
         }
     }
 
-    fun setExtraSkillIds(ids: List<String>) {
-        _extraSkillIds.value = ids
-    }
-
-    fun clearExtraSkills() {
-        _extraSkillIds.value = emptyList()
-        _selectedSkills.value = emptyList()
-    }
-
     fun generateCode() {
-        viewModelScope.launch {
-            _isLoading.value = true
-            try {
-                // Определяем, какие ID использовать:
-                // Если есть дополнительные навыки – только они, иначе старый список
-                val ids = if (_extraSkillIds.value.isNotEmpty()) {
-                    _extraSkillIds.value
-                } else {
-                    _selectedSkills.value.map { it.id }
+        val selectedIds = _extraSkillIds.value.toList()
+
+        // Новые методы из CodeGenerator
+        _requirementsTxt.value = com.example.myapplication.pycode.CodeGenerator.generateRequirementsTxt(selectedIds)
+        _heavySkillsWarning.value = com.example.myapplication.pycode.CodeGenerator.getHeavySkills(selectedIds)
+            .map { "${it.name} (${it.implementationType})" }
+
+        _generatedCode.value = com.example.myapplication.pycode.CodeGenerator.generateFullAgent(selectedIds)
+        _buildExeScript.value = com.example.myapplication.pycode.CodeGenerator.getBuildExeScript()
+    }
+
+    // ==================== УПРАВЛЕНИЕ НАВЫКАМИ ====================
+    val availableSkills: List<Skill> = SkillRepository.getSkillCategories().flatMap { it.skills }
+
+    val selectedSkills: StateFlow<List<Skill>> = extraSkillIds.map { ids ->
+        availableSkills.filter { it.id in ids }
+    }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
+
+    fun toggleSkill(skill: Skill) {
+        toggleExtraSkill(skill.id)
+    }
+    private fun startPollingTaskStatus(taskId: String) {
+        pollingJob?.cancel()
+        pollingJob = viewModelScope.launch {
+            while (true) {
+                delay(2000.milliseconds) // опрос каждые 2 секунды
+                val token = _currentUser.value?.token ?: break
+                val statusResult = withContext(Dispatchers.IO) {
+                    repository.getTaskStatus(token, taskId)
                 }
-                val code = withContext(Dispatchers.IO) {
-                    CodeGenerator.generateFullAgent(ids)
+                statusResult.onSuccess { response ->
+                    _orchestrationStatus.value = response.status
+                    when (response.status) {
+                        "completed" -> {
+                            _orchestrateResult.value = response.result
+                            _orchestrateTaskId.value = null
+                            _orchestrationStatus.value = null
+                            _isLoading.value = false
+                            break
+                        }
+                        "failed" -> {
+                            _authError.value = "Ошибка оркестрации: ${response.result}"
+                            _orchestrateTaskId.value = null
+                            _orchestrationStatus.value = null
+                            _isLoading.value = false
+                            break
+                        }
+                    }
+                }.onFailure { e ->
+                    // Логируем, но продолжаем опрос (например, временная ошибка сети)
+                    _authError.value = "Ошибка опроса статуса: ${e.message}"
                 }
-                _generatedCode.value = code
-                // Генерируем скрипт сборки EXE
-                _buildExeScript.value = CodeGenerator.getBuildExeScript()
-            } finally {
-                _isLoading.value = false
             }
         }
     }
 
-    // Очистка
     override fun onCleared() {
+        pollingJob?.cancel()
         super.onCleared()
     }
 }

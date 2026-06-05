@@ -11,12 +11,15 @@ import androidx.lifecycle.viewmodel.compose.viewModel
 import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
 import androidx.navigation.compose.rememberNavController
-import com.example.myapplication.ui.screens.GeneratedCodeScreen
 import com.example.myapplication.ui.screens.HomeScreen
-import com.example.myapplication.ui.screens.SkillCategoriesScreen
-import com.example.myapplication.ui.screens.SkillsScreen       // можно оставить для совместимости
 import com.example.myapplication.ui.theme.MyApplicationTheme
 import com.example.myapplication.viewmodel.MainViewModel
+import com.example.myapplication.ui.screens.LoginScreen
+import com.example.myapplication.ui.screens.RegisterScreen
+import com.example.myapplication.ui.screens.AgentCatalogScreen
+import com.example.myapplication.ui.screens.CreateAgentScreen
+import com.example.myapplication.ui.screens.InvokeAgentScreen
+import com.example.myapplication.ui.screens.OrchestrationScreen
 
 class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -27,36 +30,65 @@ class MainActivity : ComponentActivity() {
                     val navController = rememberNavController()
                     val mainViewModel: MainViewModel = viewModel()
 
-                    NavHost(navController = navController, startDestination = "home") {
-                        composable("home") {
-                            HomeScreen(
+                    NavHost(navController = navController, startDestination = "login") {
+                        composable("login") {
+                            LoginScreen(
                                 viewModel = mainViewModel,
-                                onNavigateToSkills = { navController.navigate("skills") },   // старый экран
-                                onNavigateToCategories = { navController.navigate("categories") },
-                                onNavigateToGenerated = {
-                                    navController.navigate("generated")
+                                onNavigateToRegister = { navController.navigate("register") },
+                                onLoginSuccess = {
+                                    navController.navigate("home") {
+                                        popUpTo("login") { inclusive = true }
+                                    }
                                 }
                             )
                         }
-                        composable("skills") {
-                            SkillsScreen(
-                                viewModel = mainViewModel,
-                                onNavigateBack = { navController.popBackStack() }
-                            )
-                        }
-                        composable("categories") {
-                            SkillCategoriesScreen(
+                        composable("register") {
+                            RegisterScreen(
                                 viewModel = mainViewModel,
                                 onNavigateBack = { navController.popBackStack() },
-                                onNavigateToGenerated = {
-                                    navController.navigate("generated")
+                                onRegisterSuccess = {
+                                    navController.navigate("home") {
+                                        popUpTo("login") { inclusive = true }
+                                    }
                                 }
                             )
                         }
-                        composable("generated") {
-                            GeneratedCodeScreen(
+                        composable("home") {
+                            HomeScreen(
+                                onNavigateToCatalog = { navController.navigate("catalog") },
+                                onNavigateToCreateAgent = { navController.navigate("create_agent") },
+                                onNavigateToInvoke = { navController.navigate("invoke") },
+                                onNavigateToOrchestrate = { navController.navigate("orchestrate") }
+                            )
+                        }
+                        composable("catalog") {
+                            AgentCatalogScreen(
                                 viewModel = mainViewModel,
-                                onNavigateBack = { navController.popBackStack() }
+                                onBack = { navController.popBackStack() },
+                                onAgentSelected = { agent ->
+                                    // Можно сразу перейти на экран вызова, передав agent
+                                    mainViewModel.setSelectedAgent(agent)
+                                    navController.navigate("invoke")
+                                }
+                            )
+                        }
+                        composable("create_agent") {
+                            CreateAgentScreen(
+                                viewModel = mainViewModel,
+                                onBack = { navController.popBackStack() },
+                                onAgentCreated = { navController.popBackStack() }
+                            )
+                        }
+                        composable("invoke") {
+                            InvokeAgentScreen(
+                                viewModel = mainViewModel,
+                                onBack = { navController.popBackStack() }
+                            )
+                        }
+                        composable("orchestrate") {
+                            OrchestrationScreen(
+                                viewModel = mainViewModel,
+                                onBack = { navController.popBackStack() }
                             )
                         }
                     }

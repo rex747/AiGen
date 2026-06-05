@@ -4,9 +4,11 @@ import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.ArrowBack
 import androidx.compose.material.icons.filled.Lock
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
+import androidx.compose.runtime.getValue
 import androidx.compose.ui.Modifier
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.example.myapplication.viewmodel.MainViewModel
@@ -22,12 +24,20 @@ fun SkillsScreen(
 
     Scaffold(
         topBar = {
-            TopAppBar(title = { Text("Выбор навыков") }, navigationIcon = { /* back */ })
+            TopAppBar(
+                title = { Text("Выбор навыков") },
+                navigationIcon = {
+                    IconButton(onClick = onNavigateBack) {
+                        Icon(Icons.Default.ArrowBack, contentDescription = "Назад")
+                    }
+                }
+            )
         }
     ) { padding ->
         LazyColumn(modifier = Modifier.padding(padding)) {
             items(viewModel.availableSkills, key = { it.id }) { skill ->
                 val isSelected = selectedSkills.any { it.id == skill.id }
+                // Бесплатные навыки доступны всегда, премиум – только если premium == true
                 val enabled = !skill.isPremium || premium
 
                 ListItem(

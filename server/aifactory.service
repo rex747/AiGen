@@ -1,0 +1,16 @@
+[Unit]
+Description=AI Factory Server (Mistral agent orchestrator)
+After=network.target
+
+[Service]
+Type=simple
+User=root
+WorkingDirectory=/root/auth_server
+ExecStart=/root/auth_server/server
+Restart=always
+RestartSec=10
+StandardOutput=append:/var/log/aifactory.log
+StandardError=append:/var/log/aifactory.log
+
+[Install]
+WantedBy=multi-user.target

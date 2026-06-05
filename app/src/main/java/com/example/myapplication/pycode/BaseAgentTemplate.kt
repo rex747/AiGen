@@ -14,6 +14,12 @@ def generate_agent_project(project_name="my_agent_project", model="gpt-3.5-turbo
     # Создание структуры директорий
     os.makedirs(project_name, exist_ok=True)
     os.makedirs(os.path.join(project_name, "skills"), exist_ok=True)
+    
+    # ==================== REQUIREMENTS.TXT ====================
+    # {{REQUIREMENTS_TXT}}
+    with open(os.path.join(project_name, "requirements.txt"), "w", encoding="utf-8") as f:
+        f.write(""${'"'}{{REQUIREMENTS_CONTENT}}""${'"'})
+
 
     # ==================== ЯДРО АГЕНТА (agent.py) ====================
     agent_code = f'''
@@ -22,62 +28,49 @@ import json
 import sys
 import os
 import importlib.util
-from typing import Any, Callable
+from typing import Any, Callable, Dict, List
 
 class Skill:
-    ""$${'"'}
-    Навык (Skills) — модульная единица функциональности агента.
-    Соответствует архитектуре Microsoft Agent Framework и Semantic Kernel.
-    ""$${'"'}
+    ""${'"'}Модульный навык агента""${'"'}
     def __init__(self, name: str, description: str, func: Callable[..., str]):
         self.name = name
         self.description = description
         self.func = func
 
     def execute(self, *args, **kwargs) -> str:
-        return self.func(*args, **kwargs)
+        try:
+            return self.func(*args, **kwargs)
+        except Exception as e:
+            return f"Ошибка выполнения навыка {self.name}: {e}"
 
 
 class Agent:
-    ""$${'"'}
-    Базовый AI-агент, соответствующий архитектуре:
-    - LangChain: model + tools + system_prompt
-    - AutoGen: AssistantAgent + UserProxyAgent
-    - CrewAI: Agent + Task + Crew
-    - Semantic Kernel: ChatCompletionAgent + Plugins
-
-    Не требует внешних библиотек (использует urllib для HTTP).
-    ""$${'"'}
+    ""${'"'}Улучшенный AI-агент с поддержкой Tool Use / ReAct""${'"'}
     def __init__(
         self,
         api_key: str,
         model: str = "{model}",
         temperature: float = {temperature},
-        system_prompt: str = "You are a helpful assistant."
+        system_prompt: str = "Ты — полезный, автономный AI-агент с множеством реальных навыков."
     ):
         self.api_key = api_key
         self.model = model
         self.temperature = temperature
         self.system_prompt = system_prompt
-        self.skills: dict[str, Skill] = {{}}
-        self.messages: list[dict[str, str]] = [
+        self.skills: Dict[str, Skill] = {{}}
+        self.messages: List[Dict[str, str]] = [
             {{"role": "system", "content": system_prompt}}
         ]
 
     def add_skill(self, skill: Skill):
-        ""$${'"'}Добавляет навык в агента (аналог register_for_execution в AutoGen).""$${'"'}
         self.skills[skill.name] = skill
 
     def _call_llm(self, prompt: str) -> str:
-        ""$${'"'}
-        Вызывает LLM API (OpenAI). Использует стандартный urllib.
-        ""$${'"'}
         url = "https://api.openai.com/v1/chat/completions"
         headers = {{
             "Content-Type": "application/json",
             "Authorization": f"Bearer {{self.api_key}}"
         }}
-        # Добавляем текущее сообщение пользователя
         messages = self.messages + [{{"role": "user", "content": prompt}}]
         data = {{
             "model": self.model,
@@ -90,29 +83,35 @@ class Agent:
             return result['choices'][0]['message']['content']
 
     def run(self, task: str) -> str:
-        ""$${'"'}
-        Основной цикл агента (аналог ReAct-цикла в LangChain).
-        1. Проверяет, есть ли навык, соответствующий задаче.
-        2. Если навык найден, выполняет его.
-        3. Иначе обращается к LLM.
-        ""$${'"'}
-        # Простейшая маршрутизация по ключевым словам (можно расширить)
-        for skill_name, skill in self.skills.items():
-            if skill_name in task.lower():
-                return skill.execute(task)
+        ""${'"'}Улучшенный ReAct-подобный цикл""${'"'}
+        self.messages.append({{"role": "user", "content": task}})
+        
+        for _ in range(8):  # Максимум итераций
+            prompt = f""${'"'}Текущая задача: {task}
+Доступные навыки: {list(self.skills.keys())}
+Подумай шаг за шагом. Если нужен навык — используй его.""${'"'}
+            
+            response = self._call_llm(prompt)
+            
+            # Простая маршрутизация по названию навыка
+            for skill_name, skill in self.skills.items():
+                if skill_name.lower() in response.lower() or skill_name in task.lower():
+                    observation = skill.execute(task)
+                    self.messages.append({{"role": "observation", "content": observation}})
+                    break
+            else:
+                # Финальный ответ
+                return response
+                
+        return self._call_llm("Дай финальный ответ на исходную задачу.")
 
-        # Если навык не найден, используем LLM
-        return self._call_llm(task)
-        
-        
     def load_skills_from_directory(self, directory: str = "skills"):
-        {"\"\"\""}Загружает навыки из Python-файлов в указанной директории.{"\"\"\""}
+        ""${'"'}Загружает все навыки из папки skills""${'"'}
         skill_dir = os.path.join(os.path.dirname(__file__), directory)
         if not os.path.isdir(skill_dir):
             return
 
         root_dir = os.path.dirname(skill_dir)
-
         sys.path.insert(0, root_dir)
         sys.path.insert(0, skill_dir)
 
@@ -124,80 +123,46 @@ class Agent:
                     if hasattr(module, "register_skills"):
                         getattr(module, "register_skills")(self)
                 except Exception as e:
-                    print(f"Ошибка загрузки навыка из {{filename}}: {{e}}")
+                    print(f"Ошибка загрузки {{filename}}: {{e}}")
 
         sys.path.pop(0)
         sys.path.pop(0)
 
 
 if __name__ == "__main__":
-    # Пример использования (замените на свой API ключ)
     API_KEY = os.getenv("OPENAI_API_KEY", "your-api-key-here")
-    agent = Agent(api_key=API_KEY)
-
-    # Загрузка навыков из папки skills
+    agent = Agent(api_key=API_KEY, model="{model}", temperature={temperature})
     agent.load_skills_from_directory()
-
-    # Тестовый запрос
-    result = agent.run("Hello, what can you do?")
-    print("Агент отвечает:")
-    print(result)
+    
+    print("Агент готов. Введите задачу или 'exit' для выхода.")
+    while True:
+        task = input("> ")
+        if task.lower() in ["exit", "quit"]:
+            break
+        result = agent.run(task)
+        print("Агент:", result)
 '''
     with open(os.path.join(project_name, "agent.py"), "w", encoding="utf-8") as f:
         f.write(agent_code)
 
-    # ==================== ПРИМЕР НАВЫКА (example_skill.py) ====================
-    skill_code = '''
-""$${'"'}
-Пример навыка (Skill) для агента.
-Каждый навык должен определять функцию register_skills(agent),
-которая добавляет одну или более Skill в переданный объект Agent.
-Архитектура соответствует Microsoft Agent Framework (FileSkill/InlineSkill).
-""$${'"'}
-import sys
-from agent import Skill
+# ==================== ДОПОЛНИТЕЛЬНЫЕ НАВЫКИ ====================
+# {{EXTRA_SKILL_FILES_PLACEHOLDER}}
 
-def calculate(expression: str) -> str:
-    ""$${'"'}Вычисляет арифметическое выражение.""$${'"'}
-    try:
-        # Игнорируем всё, кроме выражения (очень упрощённо)
-        expr = expression.replace("посчитай", "").replace("вычисли", "").strip()
-        result = eval(expr)
-        return f"Результат: {result}"
-    except Exception as e:
-        return f"Ошибка вычисления: {e}"
-
-def register_skills(agent):
-    agent.add_skill(Skill(
-        name="калькулятор",
-        description="Вычисление арифметических выражений",
-        func=calculate
-    ))
-    # Здесь можно добавить несколько навыков
-'''
-    with open(os.path.join(project_name, "skills", "example_skill.py"), "w", encoding="utf-8") as f:
-        f.write(skill_code)
-        # === ДОПОЛНИТЕЛЬНЫЕ НАВЫКИ ===
-        # {{EXTRA_SKILL_FILES_PLACEHOLDER}}
-
-    # ==================== СЦЕНАРИЙ СБОРКИ EXE ====================
+# ==================== СКРИПТ СБОРКИ EXE ====================
     build_exe_script = '''
-""$${'"'}
-Скрипт для упаковки агента в EXE-файл с помощью PyInstaller.
-Требуется установленный PyInstaller: pip install pyinstaller
-""$${'"'}
 import subprocess
 import sys
 
 def build_exe():
     subprocess.check_call([
         sys.executable, "-m", "PyInstaller",
-        "--onefile",           # Создать один EXE-файл
-        "--name", "MyAgent",   # Имя выходного файла
-        "--distpath", "./dist",# Папка для готового EXE
+        "--onefile",
+        "--name", "MyAgent",
+        "--distpath", "./dist",
+        "--clean",
         "agent.py"
     ])
-    print("EXE-файл создан в папке ./dist")
+    print("✅ EXE создан в ./dist")
 
 if __name__ == "__main__":
     build_exe()
@@ -205,32 +170,21 @@ if __name__ == "__main__":
     with open(os.path.join(project_name, "build_exe.py"), "w", encoding="utf-8") as f:
         f.write(build_exe_script)
 
-    # ==================== ВЫВОД ИНСТРУКЦИЙ ====================
-    print(f"\nПроект успешно создан в папке: {project_name}")
+
+# ==================== ИНСТРУКЦИИ ====================
+    print(f"\n✅ Проект успешно создан: {project_name}")
     print("\nСтруктура проекта:")
     print(f"  {project_name}/")
-    print(f"    agent.py          - базовый агент (без зависимостей)")
-    print(f"    skills/           - папка с навыками")
-    print(f"      example_skill.py - пример навыка-калькулятора")
-    print(f"    build_exe.py      - скрипт сборки EXE")
+    print("    ├── agent.py")
+    print("    ├── requirements.txt")
+    print("    ├── build_exe.py")
+    print("    └── skills/")
     print("\nИнструкции:")
-    print("1. Перейдите в папку проекта:")
-    print(f"   cd {project_name}")
-    print("2. Установите переменную окружения OPENAI_API_KEY (или укажите ключ в agent.py)")
-    print("3. Запустите агента:")
-    print("   python agent.py")
-    print("4. Для создания автономного EXE-файла (без Python и внешних библиотек):")
-    print("   pip install pyinstaller  (однократно на вашей машине)")
-    print("   python build_exe.py")
-    print("   После сборки EXE-файл появится в папке dist/MyAgent.exe.")
-    print("\nВы можете копировать папку проекта и использовать её на любой системе с Python 3.8+.")
-
-if __name__ == "__main__":
-    # Можно запустить с параметрами: python agent_generator.py MyProject gpt-4 0.5
-    project_name = sys.argv[1] if len(sys.argv) > 1 else "my_agent_project"
-    model = sys.argv[2] if len(sys.argv) > 2 else "gpt-3.5-turbo"
-    temperature = float(sys.argv[3]) if len(sys.argv) > 3 else 0.7
-    generate_agent_project(project_name, model, temperature)
-
+    print("1. cd " + project_name)
+    print("2. pip install -r requirements.txt")
+    print("3. export OPENAI_API_KEY=sk-...")
+    print("4. python agent.py")
+    print("5. Для EXE: python build_exe.py")
+    
 """.trimIndent()
 }

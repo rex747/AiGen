@@ -39,6 +39,8 @@ android {
 }
 
 dependencies {
+
+    implementation(libs.androidx.ui)
     val composeBom = platform("androidx.compose:compose-bom:2024.02.00")
     implementation(composeBom)
 
@@ -59,6 +61,11 @@ dependencies {
 
     // ViewModel Compose
     implementation("androidx.lifecycle:lifecycle-viewmodel-compose:2.7.0")
+
+    // network requests
+    implementation("com.squareup.retrofit2:retrofit:3.0.0")
+    implementation("com.squareup.retrofit2:converter-gson:3.0.0")
+    implementation("com.squareup.okhttp3:logging-interceptor:5.3.2")
 
     // Google Play Billing 8.0.0
     implementation("com.android.billingclient:billing:8.3.0")
