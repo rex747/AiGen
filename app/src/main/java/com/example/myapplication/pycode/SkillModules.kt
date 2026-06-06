@@ -85,6 +85,27 @@ def generate_readme(project_name: str) -> str:
     return f"# {project_name}\n\nЭтот проект создан с помощью AiGen."
 """.trimIndent()
 
+    val analysisSynthesisSkill = """
+# Навык: Анализ и синтез (Реальная когнитивная реализация через LLM)
+def cog_1(agent_instance, input_text: str) -> str:
+    specialized_prompt = f'''[СИСТЕМНАЯ ИНСТРУКЦИЯ: НАВЫК АНАЛИЗ И СИНТЕЗ]
+Примени строгий алгоритм обработки информации к запросу ниже:
+1. АНАЛИЗ: Декомпозируй данные на ключевые факты и скрытые паттерны.
+2. СВЯЗИ: Установи логические и причинно-следственные связи.
+3. СИНТЕЗ: Сформируй целостную картину и итоговый вывод.
+
+Запрос пользователя: {input_text}'''
+    return agent_instance._call_llm(specialized_prompt, system_prompt="Ты — эксперт по глубокому анализу и синтезу информации.")
+
+def register_skills(agent):
+    from agent import Skill
+    agent.add_skill(Skill(
+        name="Анализ и синтез",
+        description="Разбор сложной информации, выделение паттернов, обобщение данных.",
+        func=lambda task: cog_1(agent, task)
+    ))
+""".trimIndent()
+
     // Новая функция: возвращает код навыка по его ID
     fun skillCodeById(skillId: String): String {
         return when (skillId) {
@@ -96,10 +117,14 @@ def generate_readme(project_name: str) -> str:
             SkillRepository.ID_VIDEO -> videoAnalysisSkill
             SkillRepository.ID_DOCS -> documentationSkill
 
+            // Реализация навыка "Анализ и синтез"
+            "cog_1" -> analysisSynthesisSkill
+
             // Новые навыки – генерируем шаблонную реализацию
             else -> generateGenericSkillModule(skillId)
         }
     }
+
 
     private fun generateGenericSkillModule(skillId: String): String {
         val skill = SkillRepository.getSkillCategories()

@@ -370,7 +370,7 @@ namespace Utils {
     std::string generate_uuid();
     void log_audit(const std::string& caller, const std::string& agent_id,
         const std::string& prompt, const std::string& result);
-    std::string call_mistral_ai(const std::string& prompt);
+    std::string call_mistral_ai(const std::string& prompt, const std::string& system_prompt = "Ты — полезный AI-ассистент.");
 
     std::string to_lower(std::string s) {
         std::transform(s.begin(), s.end(), s.begin(),
@@ -442,76 +442,67 @@ namespace Utils {
     }
     
     // Функция для вызова Mistral AI
-    std::string call_mistral_ai(const std::string& prompt) {
+    std::string call_mistral_ai(const std::string& prompt, const std::string& system_prompt) {
         CURL* curl = curl_easy_init();
         if (!curl) {
             return "Ошибка: не удалось инициализировать CURL";
         }
 
-        // 1. Формируем тело JSON-запроса
+        // Формируем массив сообщений с поддержкой роли system
+        json messages = json::array();
+        if (!system_prompt.empty()) {
+            messages.push_back({ {"role", "system"}, {"content", system_prompt} });
+        }
+        messages.push_back({ {"role", "user"}, {"content", prompt} });
+
         json request_body = {
             {"model", AiConfig::MISTRAL_MODEL},
-            {"messages", json::array({ {{"role", "user"}, {"content", prompt}} })},
+            {"messages", messages},
             {"temperature", AiConfig::TEMPERATURE},
             {"max_tokens", AiConfig::MAX_TOKENS}
         };
         std::string body_str = request_body.dump();
 
-        // 2. Настраиваем заголовки HTTP-запроса
         struct curl_slist* headers = nullptr;
         std::string auth_header = "Authorization: Bearer " + std::string(AiConfig::MISTRAL_API_KEY);
         headers = curl_slist_append(headers, auth_header.c_str());
         headers = curl_slist_append(headers, "Content-Type: application/json");
 
-        // 3. Настраиваем параметры CURL
         curl_easy_setopt(curl, CURLOPT_URL, AiConfig::MISTRAL_ENDPOINT);
         curl_easy_setopt(curl, CURLOPT_HTTPHEADER, headers);
         curl_easy_setopt(curl, CURLOPT_POSTFIELDS, body_str.c_str());
-        curl_easy_setopt(curl, CURLOPT_TIMEOUT, 30L); // Таймаут на случай долгих ответов
+        curl_easy_setopt(curl, CURLOPT_TIMEOUT, 60L);
 
-        // 4. Настраиваем callback для захвата ответа
         std::string response_string;
         curl_easy_setopt(curl, CURLOPT_WRITEFUNCTION,
-            +[](char* ptr, size_t size, size_t nmemb, void* userdata) -> size_t {
+            +[](void* ptr, size_t size, size_t nmemb, void* userdata) -> size_t {
                 auto* response = static_cast<std::string*>(userdata);
                 if (!response) return 0;
                 size_t total = size * nmemb;
-                response->append(ptr, total);
+                response->append(static_cast<char*>(ptr), total);
                 return total;
             });
         curl_easy_setopt(curl, CURLOPT_WRITEDATA, &response_string);
 
-        // 5. Выполняем запрос
         CURLcode res = curl_easy_perform(curl);
         long http_code = 0;
         curl_easy_getinfo(curl, CURLINFO_RESPONSE_CODE, &http_code);
 
-        // 6. Очищаем ресурсы
         curl_slist_free_all(headers);
         curl_easy_cleanup(curl);
 
-        // 7. Обрабатываем результат
-        if (res != CURLE_OK) {
-            return "Ошибка при вызове Mistral API: " + std::string(curl_easy_strerror(res));
-        }
+        if (res != CURLE_OK) return "Ошибка CURL: " + std::string(curl_easy_strerror(res));
+        if (http_code != 200) return "Mistral API HTTP " + std::to_string(http_code) + ": " + response_string;
 
-        if (http_code != 200) {
-            return "Mistral API вернул ошибку HTTP " + std::to_string(http_code);
-        }
-
-        // 8. Парсим JSON-ответ от Mistral AI
         try {
             json response_json = json::parse(response_string);
-            // Извлекаем текст ответа по пути choices[0].message.content
             if (response_json.contains("choices") && !response_json["choices"].empty()) {
                 return response_json["choices"][0]["message"]["content"].get<std::string>();
             }
-            else {
-                return "Неожиданный формат ответа от Mistral AI";
-            }
+            return "Неожиданный формат ответа от Mistral AI";
         }
         catch (const std::exception& e) {
-            return "Ошибка парсинга JSON: " + std::string(e.what()) + "\nОтвет: " + response_string;
+            return "Ошибка парсинга JSON: " + std::string(e.what());
         }
     }
 }
@@ -1173,7 +1164,7 @@ int main() {
         });
 
         // =============================================================================
-        // POST /agent/invoke – вызов агента (эмуляция)
+        // POST /agent/invoke – вызов агента (никаких эмуляций!)
         // =============================================================================
         svr.Post("/agent/invoke", [&](const httplib::Request& req, httplib::Response& res) {
             auto token_opt = extract_bearer(req);
@@ -1191,8 +1182,30 @@ int main() {
             auto agent_opt = agent_store.find(agent_id);
             if (!agent_opt) return json_error(res, 404, "Agent not found");
 
-            // ответ Mistral (для MVP)
-            std::string result = Utils::call_mistral_ai(prompt);
+            // Формирование системного промпта на основе метаданных агента
+            std::string system_prompt = "Ты — AI-агент по имени '" + agent_opt->name + "'.";
+            if (!agent_opt->description.empty()) {
+                system_prompt += " Твоё предназначение: " + agent_opt->description + ".";
+            }
+
+            // Проверка наличия реального навыка "Анализ и синтез" (ID: cog_1)
+            bool has_analysis_synthesis = false;
+            for (const auto& skill_id : agent_opt->skills) {
+                if (skill_id == "cog_1") {
+                    has_analysis_synthesis = true;
+                }
+            }
+
+            if (has_analysis_synthesis) {
+                system_prompt += "\n\n[АКТИВНЫЙ НАВЫК: АНАЛИЗ И СИНТЕЗ]\n"
+                    "Ты обладаешь специализированным когнитивным навыком. При ответе ОБЯЗАН применять алгоритм:\n"
+                    "1. АНАЛИЗ: Декомпозируй информацию, выдели факты и скрытые паттерны.\n"
+                    "2. СВЯЗИ: Найди логические и причинно-следственные связи.\n"
+                    "3. СИНТЕЗ: Сделай глубокое обобщение и предложи итоговое структурированное решение.\n"
+                    "Структурируй ответ, явно выделяя эти этапы.";
+            }
+
+            std::string result = Utils::call_mistral_ai(prompt, system_prompt);
             Utils::log_audit(*caller_email, agent_id, prompt, result);
 
             json_ok(res, { {"result", result} });
@@ -1201,9 +1214,7 @@ int main() {
         // =============================================================================
         // POST /orchestrate – запуск цепочки агентов с реальными вызовами LLM
         // =============================================================================
-        // =============================================================================
-// POST /orchestrate – асинхронный запуск цепочки агентов
-// =============================================================================
+        
         svr.Post("/orchestrate", [&](const httplib::Request& req, httplib::Response& res) {
             auto token_opt = extract_bearer(req);
             if (!token_opt) return json_error(res, 401, "Missing token");
@@ -1229,7 +1240,7 @@ int main() {
             task_store.create(task);
 
             // 2. Запускаем фоновый поток для выполнения цепочки
-            std::thread([&, chain, initial_prompt, caller_email, task_id]() {
+            std::thread([&, chain, initial_prompt, caller_email, task_id] {
                 std::string current_payload = initial_prompt;
                 bool failed = false;
                 for (const auto& agent_id : chain) {
@@ -1239,20 +1250,28 @@ int main() {
                         failed = true;
                         break;
                     }
-                    std::string prompt_with_context =
-                        "Ты агент с именем '" + agent_opt->name + "'. " +
-                        "Твоё описание: " + agent_opt->description + ". " +
-                        "Твои навыки: " + (agent_opt->skills.empty() ? "общие" : agent_opt->skills[0]) + ". " +
-                        "Отвечай на запрос пользователя, используя свои знания и навыки.\n" +
-                        "Запрос: " + current_payload;
-                    std::string step_result = Utils::call_mistral_ai(prompt_with_context);
+
+                    std::string system_prompt = "Ты — агент '" + agent_opt->name + "'. " +
+                        "Описание: " + agent_opt->description + ". ";
+
+                    bool has_analysis_synthesis = false;
+                    for (const auto& skill_id : agent_opt->skills) {
+                        if (skill_id == "cog_1") {
+                            has_analysis_synthesis = true;
+                        }
+                    }
+                    if (has_analysis_synthesis) {
+                        system_prompt += "\n[АКТИВНЫЙ НАВЫК: АНАЛИЗ И СИНТЕЗ] Применяй строгий алгоритм: 1) Анализ (декомпозиция, поиск паттернов). 2) Связи. 3) Синтез (целостный вывод). Структурируй ответ.";
+                    }
+
+                    std::string step_result = Utils::call_mistral_ai(current_payload, system_prompt);
                     Utils::log_audit(caller_email.value(), agent_id, current_payload, step_result);
                     current_payload = step_result;
                 }
                 if (!failed) {
                     task_store.update_status(task_id, "completed", "", current_payload);
                 }
-                }).detach();
+            }).detach();
 
             // 3. Немедленно возвращаем taskId
             json_ok(res, { {"taskId", task_id}, {"status", "pending"} });

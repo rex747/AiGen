@@ -6,7 +6,7 @@ object BaseAgentTemplate {
 import os
 import sys
 
-def generate_agent_project(project_name="my_agent_project", model="gpt-3.5-turbo", temperature=0.7):
+def generate_agent_project(project_name="my_agent_project", model="mistral-medium-latest", temperature=0.7):
     ""$${'"'}
     Генерирует полностью самодостаточный проект AI-агента.
     После генерации скопируйте папку проекта и используйте её в любой системе.
@@ -66,12 +66,13 @@ class Agent:
         self.skills[skill.name] = skill
 
     def _call_llm(self, prompt: str) -> str:
-        url = "https://api.openai.com/v1/chat/completions"
+        url = "https://api.mistral.ai/v1/chat/completions"
         headers = {{
             "Content-Type": "application/json",
             "Authorization": f"Bearer {{self.api_key}}"
         }}
-        messages = self.messages + [{{"role": "user", "content": prompt}}]
+        sys_prompt = self.system_prompt if not system_prompt else system_prompt
+        messages = [{{"role": "system", "content": sys_prompt}}] + self.messages + [{{"role": "user", "content": prompt}}]
         data = {{
             "model": self.model,
             "messages": messages,
@@ -130,7 +131,7 @@ class Agent:
 
 
 if __name__ == "__main__":
-    API_KEY = os.getenv("OPENAI_API_KEY", "your-api-key-here")
+    API_KEY = os.getenv("MISTRAL_API_KEY", "your-mistral-api-key-here")
     agent = Agent(api_key=API_KEY, model="{model}", temperature={temperature})
     agent.load_skills_from_directory()
     
