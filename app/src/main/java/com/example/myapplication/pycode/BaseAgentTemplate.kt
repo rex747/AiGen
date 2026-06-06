@@ -65,7 +65,7 @@ class Agent:
     def add_skill(self, skill: Skill):
         self.skills[skill.name] = skill
 
-    def _call_llm(self, prompt: str) -> str:
+    def _call_llm(self, prompt: str, system_prompt: str = "") -> str:
         url = "https://api.mistral.ai/v1/chat/completions"
         headers = {{
             "Content-Type": "application/json",

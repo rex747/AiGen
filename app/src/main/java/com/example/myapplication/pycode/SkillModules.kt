@@ -106,6 +106,37 @@ def register_skills(agent):
     ))
 """.trimIndent()
 
+    val reasoningSkill = """
+# Навык: Рассуждение (Реальная когнитивная реализация через LLM)
+def cog_2(agent_instance, input_text: str) -> str:
+    specialized_prompt = f'''[СИСТЕМНАЯ ИНСТРУКЦИЯ: НАВЫК РАССУЖДЕНИЕ]
+Примени строгий алгоритм логического рассуждения к запросу ниже:
+
+1. ПОСТАНОВКА ПРОБЛЕМЫ: Четко сформулируй вопрос или задачу.
+
+2. ДЕКОМПОЗИЦИЯ: Разбей задачу на подзадачи и выдели ключевые факты.
+
+3. ЛОГИЧЕСКИЙ АНАЛИЗ: Для каждой подзадачи примени подходящий метод:
+   - ДЕДУКЦИЯ: От общих принципов к частным выводам
+   - ИНДУКЦИЯ: От частных наблюдений к общим закономерностям  
+   - АБДУКЦИЯ: Поиск наилучшего объяснения имеющихся фактов
+
+4. ПРОВЕРКА: Найди потенциальные логические ошибки, предвзятости или упущения.
+
+5. ВЫВОД: Сформулируй итоговый обоснованный ответ с четкой аргументацией.
+
+Запрос пользователя: {input_text}'''
+    return agent_instance._call_llm(specialized_prompt, system_prompt="Ты — эксперт по логическому рассуждению и критическому мышлению.")
+
+def register_skills(agent):
+    from agent import Skill
+    agent.add_skill(Skill(
+        name="Рассуждение",
+        description="Логический вывод, дедукция, индукция, абдукция. Используется в Chain-of-Thought.",
+        func=lambda task: cog_2(agent, task)
+    ))
+""".trimIndent()
+
     // Новая функция: возвращает код навыка по его ID
     fun skillCodeById(skillId: String): String {
         return when (skillId) {
@@ -117,8 +148,10 @@ def register_skills(agent):
             SkillRepository.ID_VIDEO -> videoAnalysisSkill
             SkillRepository.ID_DOCS -> documentationSkill
 
-            // Реализация навыка "Анализ и синтез"
+            // Реализация когнетивных навыков AI
             "cog_1" -> analysisSynthesisSkill
+            "cog_2" -> reasoningSkill
+
 
             // Новые навыки – генерируем шаблонную реализацию
             else -> generateGenericSkillModule(skillId)

@@ -370,7 +370,7 @@ namespace Utils {
     std::string generate_uuid();
     void log_audit(const std::string& caller, const std::string& agent_id,
         const std::string& prompt, const std::string& result);
-    std::string call_mistral_ai(const std::string& prompt, const std::string& system_prompt = "Ты — полезный AI-ассистент.");
+    std::string call_mistral_ai(const std::string& prompt, const std::string& system_prompt = "");
 
     std::string to_lower(std::string s) {
         std::transform(s.begin(), s.end(), s.begin(),
@@ -1205,6 +1205,28 @@ int main() {
                     "Структурируй ответ, явно выделяя эти этапы.";
             }
 
+            // Проверка наличия реального навыка "Рассуждение" (ID: cog_2)
+            bool has_reasoning = false;
+            for (const auto& skill_id : agent_opt->skills) {
+                if (skill_id == "cog_2") {
+                    has_reasoning = true;
+                }
+            }
+
+            if (has_reasoning) {
+                system_prompt += "\n\n[АКТИВНЫЙ НАВЫК: РАССУЖДЕНИЕ]\n"
+                    "Ты обладаешь специализированным когнитивным навыком рассуждения. При ответе ОБЯЗАН применять алгоритм:\n"
+                    "1. ПОСТАНОВКА ПРОБЛЕМЫ: Четко сформулируй вопрос или задачу.\n"
+                    "2. ДЕКОМПОЗИЦИЯ: Разбей задачу на подзадачи.\n"
+                    "3. ЛОГИЧЕСКИЙ АНАЛИЗ: Для каждой подзадачи примени один из методов:\n"
+                    "   - Дедукция (от общего к частному)\n"
+                    "   - Индукция (от частного к общему)\n"
+                    "   - Абдукция (наилучшее объяснение фактов)\n"
+                    "4. ПРОВЕРКА: Найди потенциальные ошибки в рассуждении.\n"
+                    "5. ВЫВОД: Сформулируй итоговый обоснованный ответ.\n"
+                    "Структурируй ответ, явно выделяя эти этапы.";
+            }
+
             std::string result = Utils::call_mistral_ai(prompt, system_prompt);
             Utils::log_audit(*caller_email, agent_id, prompt, result);
 
@@ -1254,6 +1276,7 @@ int main() {
                     std::string system_prompt = "Ты — агент '" + agent_opt->name + "'. " +
                         "Описание: " + agent_opt->description + ". ";
 
+                    // Проверка наличиия навыка "Аналз и синтез" (ID: cog_1)
                     bool has_analysis_synthesis = false;
                     for (const auto& skill_id : agent_opt->skills) {
                         if (skill_id == "cog_1") {
@@ -1262,6 +1285,17 @@ int main() {
                     }
                     if (has_analysis_synthesis) {
                         system_prompt += "\n[АКТИВНЫЙ НАВЫК: АНАЛИЗ И СИНТЕЗ] Применяй строгий алгоритм: 1) Анализ (декомпозиция, поиск паттернов). 2) Связи. 3) Синтез (целостный вывод). Структурируй ответ.";
+                    }
+
+                    // Проверка наличия навыка "Рассуждение" (ID: cog_2)
+                    bool has_reasoning = false;
+                    for (const auto& skill_id : agent_opt->skills) {
+                        if (skill_id == "cog_2") {
+                            has_reasoning = true;
+                        }
+                    }
+                    if (has_reasoning) {
+                        system_prompt += "\n[АКТИВНЫЙ НАВЫК: РАССУЖДЕНИЕ] Применяй строгий алгоритм: 1) Постановка проблемы. 2) Декомпозиция. 3) Логический анализ (дедукция/индукция/абдукция). 4) Проверка. 5) Итоговый вывод. Структурируй ответ.";
                     }
 
                     std::string step_result = Utils::call_mistral_ai(current_payload, system_prompt);
