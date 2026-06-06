@@ -49,6 +49,34 @@ class AuthRepository {
         }
     }
 
+    suspend fun updateAgent(token: String, agentId: String, request: AgentUpdateRequest): Result<Map<String, String>> {
+        return try {
+            val response = api.updateAgent("Bearer $token", agentId, request)
+            if (response.isSuccessful && response.body() != null) {
+                Result.success(response.body()!!)
+            } else {
+                val error = response.errorBody()?.string() ?: "Failed to update agent"
+                Result.failure(Exception(error))
+            }
+        } catch (e: Exception) {
+            Result.failure(e)
+        }
+    }
+
+    suspend fun deleteAgent(token: String, agentId: String): Result<Map<String, String>> {
+        return try {
+            val response = api.deleteAgent("Bearer $token", agentId)
+            if (response.isSuccessful && response.body() != null) {
+                Result.success(response.body()!!)
+            } else {
+                val error = response.errorBody()?.string() ?: "Failed to delete agent"
+                Result.failure(Exception(error))
+            }
+        } catch (e: Exception) {
+            Result.failure(e)
+        }
+    }
+
     suspend fun listAgents(token: String): Result<List<Agent>> {
         return try {
             val response = api.listAgents("Bearer $token")

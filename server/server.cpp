@@ -87,9 +87,7 @@ struct Task {
 // =============================================================================
 // ХРАНИЛИЩЕ АГЕНТОВ И ЗАДАЧ (in-memory + JSON-файлы)
 // =============================================================================
-// =============================================================================
-// ХРАНИЛИЩЕ АГЕНТОВ (in-memory + файл agents.json)
-// =============================================================================
+
 class AgentStore {
     mutable std::shared_mutex mtx_;
     std::map<std::string, Agent> agents_; // agent_id -> Agent
@@ -195,6 +193,19 @@ public:
             }
         }
         return result;
+    }
+
+    // Метод удаления
+    bool remove(const std::string& agent_id) {
+        std::unique_lock lock(mtx_);
+        auto it = agents_.find(agent_id);
+        if (it == agents_.end()) {
+            return false;
+        }
+        agents_.erase(it);
+        lock.unlock();
+        persist();
+        return true;
     }
 };
 
@@ -1065,10 +1076,101 @@ int main() {
                     {"description", a.description},
                     {"ownerEmail", a.owner_email},
                     {"skills", a.skills}
-                    });
+                });
             }
             json_ok(res, j_agents);
+        });
+
+        // редактирование агента PUT /agent/{agentId}
+        svr.Put(R"(/agent/([a-zA-Z0-9\-]+))", [&](const httplib::Request& req, httplib::Response& res) {
+            auto token_opt = extract_bearer(req);
+            if (!token_opt) return json_error(res, 401, "Missing token");
+            auto email_opt = JWT::verify(*token_opt);
+            if (!email_opt) return json_error(res, 401, "Invalid token");
+
+            std::string agent_id = req.matches[1];
+
+            auto agent_opt = agent_store.find(agent_id);
+            if (!agent_opt) {
+                return json_error(res, 404, "Agent not found");
+            }
+
+            if (agent_opt->owner_email != *email_opt) {
+                return json_error(res, 403, "You do not have permission to edit this agent");
+            }
+
+            auto body = json::parse(req.body, nullptr, false);
+            if (body.is_discarded()) {
+                return json_error(res, 400, "Invalid JSON body");
+            }
+
+            if (!body.contains("name") || !body.contains("description") || !body.contains("skills")) {
+                return json_error(res, 400, "name, description, and skills are required");
+            }
+
+            Agent updated_agent;
+            updated_agent.agent_id = agent_id;
+            updated_agent.owner_email = agent_opt->owner_email;
+            updated_agent.endpoint = agent_opt->endpoint;
+            updated_agent.is_public = agent_opt->is_public;
+
+            std::string new_name = body["name"].get<std::string>();
+            if (new_name.empty() || new_name.length() > 100) {
+                return json_error(res, 400, "Agent name must be between 1 and 100 characters");
+            }
+            updated_agent.name = new_name;
+
+            std::string new_description = body["description"].get<std::string>();
+            if (new_description.length() > 1000) {
+                return json_error(res, 400, "Agent description must not exceed 1000 characters");
+            }
+            updated_agent.description = new_description;
+
+            updated_agent.skills = body["skills"].get<std::vector<std::string>>();
+
+            if (updated_agent.skills.size() > 50) {
+                return json_error(res, 400, "Agent cannot have more than 50 skills");
+            }
+
+            if (!agent_store.update(updated_agent)) {
+                return json_error(res, 500, "Failed to update agent");
+            }
+
+            std::cout << "[INFO] Agent updated: " << agent_id << " by " << *email_opt << std::endl;
+            json_ok(res, {
+                {"message", "Agent updated successfully"},
+                {"agentId", agent_id}
             });
+        });
+
+        // удаление агента DELETE /agent/{agentId}
+        svr.Delete(R"(/agent/([a-zA-Z0-9\-]+))", [&](const httplib::Request& req, httplib::Response& res) {
+            auto token_opt = extract_bearer(req);
+            if (!token_opt) return json_error(res, 401, "Missing token");
+            auto email_opt = JWT::verify(*token_opt);
+            if (!email_opt) return json_error(res, 401, "Invalid token");
+
+            std::string agent_id = req.matches[1];
+
+            auto agent_opt = agent_store.find(agent_id);
+            if (!agent_opt) {
+                return json_error(res, 404, "Agent not found");
+            }
+
+            if (agent_opt->owner_email != *email_opt) {
+                return json_error(res, 403, "You do not have permission to delete this agent");
+            }
+
+            if (!agent_store.remove(agent_id)) {
+                return json_error(res, 500, "Failed to delete agent");
+            }
+
+            std::cout << "[INFO] Agent deleted: " << agent_id << " by " << *email_opt << std::endl;
+            json_ok(res, {
+                {"message", "Agent deleted successfully"},
+                {"agentId", agent_id}
+                });
+        });
 
         // =============================================================================
         // POST /agent/invoke – вызов агента (эмуляция)

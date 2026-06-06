@@ -14,6 +14,12 @@ data class AgentRegistrationRequest(
     val skills: List<String>
 )
 
+data class AgentUpdateRequest(
+    val name: String,
+    val description: String,
+    val skills: List<String>
+)
+
 data class AgentInvokeRequest(
     val agentId: String,
     val prompt: String

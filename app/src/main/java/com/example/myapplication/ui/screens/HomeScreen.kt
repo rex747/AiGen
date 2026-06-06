@@ -16,6 +16,7 @@ import androidx.compose.ui.text.style.TextAlign
 fun HomeScreen(
     // Навигационные колбэки
     onNavigateToCatalog: () -> Unit,
+    onNavigateToMyAgents: () -> Unit,
     onNavigateToCreateAgent: () -> Unit,
     onNavigateToInvoke: () -> Unit,
     onNavigateToOrchestrate: () -> Unit
@@ -59,6 +60,12 @@ fun HomeScreen(
                 modifier = Modifier.fillMaxWidth(0.8f)
             ) {
                 Text("📋 Каталог агентов")
+            }
+            Button(
+                onClick = onNavigateToMyAgents,
+                modifier = Modifier.fillMaxWidth(0.8f)
+            ) {
+                Text("👤 Мои агенты")
             }
             Button(
                 onClick = onNavigateToCreateAgent,

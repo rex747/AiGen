@@ -70,6 +70,7 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
         pollingJob?.cancel()
         _currentUser.value = null
         _agentsCatalog.value = emptyList()
+        _myAgents.value = emptyList()
         _selectedAgentForInvoke.value = null
         _invokeResult.value = null
         _orchestrateResult.value = null
@@ -119,6 +120,37 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
             result.onSuccess {
                 _agentRegistrationSuccess.emit(true)
                 loadMyAgents()
+                loadAgentsCatalog()
+            }
+            result.onFailure { e -> _authError.value = e.message }
+            _isLoading.value = false
+        }
+    }
+
+    fun updateAgent(agentId: String, name: String, description: String, skillIds: List<String>) {
+        viewModelScope.launch {
+            val token = _currentUser.value?.token ?: return@launch
+            _isLoading.value = true
+            val request = AgentUpdateRequest(name, description, skillIds)
+            val result = withContext(Dispatchers.IO) { repository.updateAgent(token, agentId, request) }
+            result.onSuccess {
+                _agentRegistrationSuccess.emit(true)
+                loadMyAgents()
+                loadAgentsCatalog()
+            }
+            result.onFailure { e -> _authError.value = e.message }
+            _isLoading.value = false
+        }
+    }
+
+    fun deleteAgent(agentId: String) {
+        viewModelScope.launch {
+            val token = _currentUser.value?.token ?: return@launch
+            _isLoading.value = true
+            val result = withContext(Dispatchers.IO) { repository.deleteAgent(token, agentId) }
+            result.onSuccess {
+                loadMyAgents()
+                loadAgentsCatalog()
             }
             result.onFailure { e -> _authError.value = e.message }
             _isLoading.value = false
@@ -193,7 +225,6 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
             result.onSuccess { response ->
                 _orchestrateTaskId.value = response.taskId
                 _orchestrationStatus.value = "pending"
-                // Запускаем опрос статуса задачи
                 startPollingTaskStatus(response.taskId)
             }
             result.onFailure { e ->
@@ -213,7 +244,6 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
     private val _buildExeScript = MutableStateFlow("")
     val buildExeScript: StateFlow<String> = _buildExeScript
 
-    // Новые состояния
     private val _requirementsTxt = MutableStateFlow("")
     val requirementsTxt: StateFlow<String> = _requirementsTxt
 
@@ -229,7 +259,6 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
     fun generateCode() {
         val selectedIds = _extraSkillIds.value.toList()
 
-        // Новые методы из CodeGenerator
         _requirementsTxt.value = com.example.myapplication.pycode.CodeGenerator.generateRequirementsTxt(selectedIds)
         _heavySkillsWarning.value = com.example.myapplication.pycode.CodeGenerator.getHeavySkills(selectedIds)
             .map { "${it.name} (${it.implementationType})" }
@@ -248,6 +277,7 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
     fun toggleSkill(skill: Skill) {
         toggleExtraSkill(skill.id)
     }
+
     private fun startPollingTaskStatus(taskId: String) {
         pollingJob?.cancel()
         pollingJob = viewModelScope.launch {
@@ -276,7 +306,6 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
                         }
                     }
                 }.onFailure { e ->
-                    // Логируем, но продолжаем опрос (например, временная ошибка сети)
                     _authError.value = "Ошибка опроса статуса: ${e.message}"
                 }
             }
