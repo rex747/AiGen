@@ -96,7 +96,9 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
             _isLoading.value = true
             val request = ProfileUpdateRequest(newPassword, cardToken, cardMask)
             val result = withContext(Dispatchers.IO) { repository.updateProfile(token, request) }
-            result.onSuccess { loadProfile() }
+            if (result.isSuccess) {
+                loadProfile() // Перезагружаем данные с сервера
+            }
             result.onFailure { _profileActionError.value = it.message }
             _isLoading.value = false
         }

@@ -12,7 +12,6 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
-import androidx.compose.material.icons.filled.ArrowBack
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
@@ -90,12 +89,10 @@ fun ProfileScreen(
                 .getString("token")
 
             val cardDescription = try {
-                paymentDataJson
-                    .getJSONObject("paymentMethodData")
-                    .getJSONObject("info")
-                    .optJSONObject("cardDetails")
-                    ?.optString("lastDigits", "XXXX") ?: "XXXX"
-            } catch (e: Exception) {
+                val info = paymentDataJson.getJSONObject("paymentMethodData").getJSONObject("info")
+                // Пробуем получить last4 или cardDetails (зависит от версии и типа карты)
+                info.optString("last4", info.optString("cardDetails", "XXXX"))
+            } catch (_: Exception) {
                 "XXXX"
             }
             val cardMask = "•••• $cardDescription"
@@ -250,7 +247,7 @@ fun ProfileScreen(
 
                     Text("Платежная карта:", style = MaterialTheme.typography.titleMedium)
                     Text(
-                        text = if (profile.cardMask.isNullOrEmpty()) "Карта не привязана" else profile.cardMask!!,
+                        text = if (profile.cardMask.isNullOrEmpty()) "Карта не привязана" else profile.cardMask,
                         style = MaterialTheme.typography.bodyLarge
                     )
 

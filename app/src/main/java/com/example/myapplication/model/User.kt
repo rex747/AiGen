@@ -1,7 +1,7 @@
 package com.example.myapplication.model
 
 import com.google.gson.annotations.SerializedName
-import kotlinx.serialization.SerialName
+
 data class User(
     val email: String,
     val token: String? = null
@@ -10,7 +10,7 @@ data class User(
 // Ответ от сервера при запросе профиля
 data class ProfileResponse(
     val email: String,
-    @SerialName("card_mask")
+    @SerializedName("card_mask")
     val cardMask: String?
 )
 
