@@ -5,6 +5,19 @@ data class User(
     val token: String? = null
 )
 
+// Ответ от сервера при запросе профиля
+data class ProfileResponse(
+    val email: String,
+    val cardMask: String?
+)
+
+// Тело запроса на обновление профиля
+data class ProfileUpdateRequest(
+    val password: String? = null,
+    val cardToken: String? = null,
+    val cardMask: String? = null
+)
+
 // Запросы/ответы API
 data class AuthRequest(val email: String, val password: String)
 data class AuthResponse(val token: String, val email: String)

@@ -10,15 +10,28 @@ import com.example.myapplication.model.Agent
 import com.example.myapplication.model.OrchestrateResponse
 import com.example.myapplication.model.OrchestrateRequest
 import com.example.myapplication.model.GetTaskResponse
+import com.example.myapplication.model.ProfileResponse
 import retrofit2.Response
 import retrofit2.http.*
-
+import com.example.myapplication.model.ProfileUpdateRequest
 interface AuthApi {
     @POST("/register")
     suspend fun register(@Body request: AuthRequest): Response<AuthResponse>
 
     @POST("/login")
     suspend fun login(@Body request: AuthRequest): Response<AuthResponse>
+
+    @GET("/profile")
+    suspend fun getProfile(@Header("Authorization") auth: String): Response<ProfileResponse>
+
+    @PUT("/profile")
+    suspend fun updateProfile(
+        @Header("Authorization") auth: String,
+        @Body request: ProfileUpdateRequest
+    ): Response<Unit>
+
+    @DELETE("/profile")
+    suspend fun deleteProfile(@Header("Authorization") auth: String): Response<Unit>
 
     @POST("/agent/register")
     suspend fun registerAgent(@Header("Authorization") auth: String, @Body request: AgentRegistrationRequest): Response<Map<String, String>>

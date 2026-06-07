@@ -71,6 +71,9 @@ dependencies {
     implementation("com.android.billingclient:billing:8.3.0")
     implementation("com.android.billingclient:billing-ktx:8.3.0")
 
+    // Google Pay API (Wallet)
+    implementation("com.google.android.gms:play-services-wallet:20.0.0")
+
     // Room (опционально, для хранения истории)
     implementation("androidx.room:room-runtime:2.6.1")
     implementation("androidx.room:room-ktx:2.6.1")

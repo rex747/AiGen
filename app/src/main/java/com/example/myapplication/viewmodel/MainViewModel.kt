@@ -30,6 +30,20 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
 
     val isPremium: StateFlow<Boolean> = MutableStateFlow(true)
 
+    private val _userProfile = MutableStateFlow<ProfileResponse?>(null)
+    val userProfile: StateFlow<ProfileResponse?> = _userProfile
+
+    private val _profileActionError = MutableStateFlow<String?>(null)
+    val profileActionError: StateFlow<String?> = _profileActionError
+
+    fun clearProfileActionError() {
+        _profileActionError.value = null
+    }
+
+    fun setProfileActionError(message: String?) {
+        _profileActionError.value = message
+    }
+
     // Регистрация / вход
     fun register(email: String, password: String) {
         viewModelScope.launch {
@@ -65,6 +79,40 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
         }
     }
 
+    fun loadProfile() {
+        viewModelScope.launch {
+            val token = _currentUser.value?.token ?: return@launch
+            _isLoading.value = true
+            val result = withContext(Dispatchers.IO) { repository.getProfile(token) }
+            result.onSuccess { _userProfile.value = it }
+            result.onFailure { _authError.value = it.message }
+            _isLoading.value = false
+        }
+    }
+
+    fun updateProfile(newPassword: String?, cardToken: String?, cardMask: String?) {
+        viewModelScope.launch {
+            val token = _currentUser.value?.token ?: return@launch
+            _isLoading.value = true
+            val request = ProfileUpdateRequest(newPassword, cardToken, cardMask)
+            val result = withContext(Dispatchers.IO) { repository.updateProfile(token, request) }
+            result.onSuccess { loadProfile() }
+            result.onFailure { _profileActionError.value = it.message }
+            _isLoading.value = false
+        }
+    }
+
+    fun deleteProfile() {
+        viewModelScope.launch {
+            val token = _currentUser.value?.token ?: return@launch
+            _isLoading.value = true
+            val result = withContext(Dispatchers.IO) { repository.deleteProfile(token) }
+            result.onSuccess { logout() } // Очищаем локальный стейт и возвращаем на экран логина
+            result.onFailure { _profileActionError.value = it.message }
+            _isLoading.value = false
+        }
+    }
+
     fun logout() {
         // Остановить опрос, если активен
         pollingJob?.cancel()
@@ -88,6 +136,8 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
 
     private val _agentRegistrationSuccess = MutableSharedFlow<Boolean>()
     val agentRegistrationSuccess: SharedFlow<Boolean> = _agentRegistrationSuccess
+
+
 
     fun loadAgentsCatalog() {
         viewModelScope.launch {

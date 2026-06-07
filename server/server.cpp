@@ -636,24 +636,32 @@ public:
 // =============================================================================
 class UserStore {
     mutable std::shared_mutex mtx_;
-    std::map<std::string, std::pair<std::string, std::string>> users_; // email -> {salt, hash}
+
+    // НОВАЯ СТРУКТУРА: Добавлены поля для безопасного хранения платежных данных
+    struct UserData {
+        std::string salt;
+        std::string hash;
+        std::string card_token; // Токен платежного шлюза (PCI-DSS compliant)
+        std::string card_mask;  // Последние 4 цифры (например, "**** 1234")
+    };
+
+    std::map<std::string, UserData> users_;
     const std::string file_path_;
 
     void load() {
         std::ifstream file(file_path_);
         if (!file.is_open()) return;
-
         try {
             json j;
             file >> j;
-            std::unique_lock<std::shared_mutex> lock(mtx_);
+            std::unique_lock lock(mtx_);
             for (auto& [email, data] : j.items()) {
-                if (data.contains("salt") && data.contains("hash")) {
-                    users_[email] = {
-                        data["salt"].get<std::string>(),
-                        data["hash"].get<std::string>()
-                    };
-                }
+                UserData ud;
+                ud.salt = data.value("salt", "");
+                ud.hash = data.value("hash", "");
+                ud.card_token = data.value("card_token", "");
+                ud.card_mask = data.value("card_mask", "");
+                users_[email] = ud;
             }
         }
         catch (const std::exception& e) {
@@ -661,58 +669,92 @@ class UserStore {
         }
     }
 
-public:
-    explicit UserStore(std::string path) : file_path_(std::move(path)) {
-        load();
-    }
-
-    bool exists(const std::string& email) const {
-        std::shared_lock<std::shared_mutex> lock(mtx_);
-        return users_.find(email) != users_.end();
-    }
-
-    bool create(const std::string& email, const std::string& password) {
-        std::unique_lock<std::shared_mutex> lock(mtx_);
-        if (users_.find(email) != users_.end()) {
-            return false;
-        }
-
-        std::string salt = Crypto::generate_salt();
-        std::string hash = Crypto::hash_password(password, salt);
-        users_[email] = { salt, hash };
-
-        lock.unlock();
-        persist();
-        return true;
-    }
-
-    bool validate(const std::string& email, const std::string& password) const {
-        std::shared_lock<std::shared_mutex> lock(mtx_);
-        auto it = users_.find(email);
-        if (it == users_.end()) return false;
-
-        std::string computed = Crypto::hash_password(password, it->second.first);
-        return Crypto::secure_compare(computed, it->second.second);
-    }
-
     void persist() {
         json j;
         {
-            std::shared_lock<std::shared_mutex> lock(mtx_);
-            for (const auto& [email, cred] : users_) {
+            std::shared_lock lock(mtx_);
+            for (const auto& [email, ud] : users_) {
                 j[email] = {
-                    {"salt", cred.first},
-                    {"hash", cred.second}
+                    {"salt", ud.salt},
+                    {"hash", ud.hash},
+                    {"card_token", ud.card_token},
+                    {"card_mask", ud.card_mask}
                 };
             }
         }
-
         std::ofstream file(file_path_, std::ios::trunc);
         if (!file.is_open()) {
             std::cerr << "[ERROR] Cannot open users file for writing" << std::endl;
             return;
         }
         file << j.dump(2);
+    }
+
+public:
+    explicit UserStore(std::string path) : file_path_(std::move(path)) { load(); }
+
+    bool exists(const std::string& email) const {
+        std::shared_lock lock(mtx_);
+        return users_.find(email) != users_.end();
+    }
+
+    bool create(const std::string& email, const std::string& password) {
+        std::unique_lock lock(mtx_);
+        if (users_.find(email) != users_.end()) return false;
+        UserData ud;
+        ud.salt = Crypto::generate_salt();
+        ud.hash = Crypto::hash_password(password, ud.salt);
+        users_[email] = ud;
+        lock.unlock();
+        persist();
+        return true;
+    }
+
+    bool validate(const std::string& email, const std::string& password) const {
+        std::shared_lock lock(mtx_);
+        auto it = users_.find(email);
+        if (it == users_.end()) return false;
+        std::string computed = Crypto::hash_password(password, it->second.salt);
+        return Crypto::secure_compare(computed, it->second.hash);
+    }
+
+    // НОВЫЙ МЕТОД: Получение данных профиля
+    std::optional<UserData> get_user(const std::string& email) const {
+        std::shared_lock lock(mtx_);
+        auto it = users_.find(email);
+        if (it == users_.end()) return std::nullopt;
+        return it->second;
+    }
+
+    // НОВЫЙ МЕТОД: Обновление пароля и привязка карты
+    bool update_profile(const std::string& email, const std::string& new_password,
+        const std::string& new_card_token, const std::string& new_card_mask) {
+        std::unique_lock lock(mtx_);
+        auto it = users_.find(email);
+        if (it == users_.end()) return false;
+
+        if (!new_password.empty()) {
+            it->second.salt = Crypto::generate_salt();
+            it->second.hash = Crypto::hash_password(new_password, it->second.salt);
+        }
+        if (!new_card_token.empty()) {
+            it->second.card_token = new_card_token;
+            it->second.card_mask = new_card_mask;
+        }
+        lock.unlock();
+        persist();
+        return true;
+    }
+
+    // НОВЫЙ МЕТОД: Полное удаление профиля
+    bool remove_user(const std::string& email) {
+        std::unique_lock lock(mtx_);
+        auto it = users_.find(email);
+        if (it == users_.end()) return false;
+        users_.erase(it);
+        lock.unlock();
+        persist();
+        return true;
     }
 };
 
@@ -976,25 +1018,71 @@ int main() {
             });
 
         // ---------------------------------------------------------------------
-        // GET /profile (защищённый маршрут — пример)
+        // GET /profile (Получение данных личного кабинета)
         // ---------------------------------------------------------------------
         svr.Get("/profile", [&](const httplib::Request& req, httplib::Response& res) {
             auto token_opt = extract_bearer(req);
-            if (!token_opt) {
-                json_error(res, 401, "Missing Authorization header");
-                return;
-            }
-
+            if (!token_opt) return json_error(res, 401, "Missing token");
             auto email_opt = JWT::verify(*token_opt);
-            if (!email_opt) {
-                json_error(res, 401, "Invalid or expired token");
-                return;
-            }
+            if (!email_opt) return json_error(res, 401, "Invalid token");
+
+            auto ud_opt = store.get_user(*email_opt);
+            if (!ud_opt) return json_error(res, 404, "User not found");
 
             json_ok(res, {
                 {"email", *email_opt},
-                {"message", "Authenticated access granted"}
-                });
+                {"card_mask", ud_opt->card_mask}
+                // ВНИМАНИЕ: Хэш пароля не возвращается клиенту в целях безопасности
+            });
+        });
+
+        // ---------------------------------------------------------------------
+        // PUT /profile (Редактирование пароля и привязка карты)
+        // ---------------------------------------------------------------------
+        svr.Put("/profile", [&](const httplib::Request& req, httplib::Response& res) {
+            auto token_opt = extract_bearer(req);
+            if (!token_opt) return json_error(res, 401, "Missing token");
+            auto email_opt = JWT::verify(*token_opt);
+            if (!email_opt) return json_error(res, 401, "Invalid token");
+
+            auto body = json::parse(req.body, nullptr, false);
+            if (body.is_discarded()) return json_error(res, 400, "Invalid JSON");
+
+            std::string new_pass = body.value("password", "");
+            std::string new_card_token = body.value("card_token", "");
+            std::string new_card_mask = body.value("card_mask", "");
+
+            if (!new_pass.empty() && !is_valid_password(new_pass)) {
+                return json_error(res, 400, "Password must be 8-128 characters");
+            }
+
+            if (!store.update_profile(*email_opt, new_pass, new_card_token, new_card_mask)) {
+                return json_error(res, 500, "Failed to update profile");
+            }
+
+            json_ok(res, { {"message", "Profile updated"} });
+        });
+
+        // ---------------------------------------------------------------------
+        // DELETE /profile (Удаление аккаунта и всех связанных агентов)
+        // ---------------------------------------------------------------------
+        svr.Delete("/profile", [&](const httplib::Request& req, httplib::Response& res) {
+            auto token_opt = extract_bearer(req);
+            if (!token_opt) return json_error(res, 401, "Missing token");
+            auto email_opt = JWT::verify(*token_opt);
+            if (!email_opt) return json_error(res, 401, "Invalid token");
+
+            // Каскадное удаление: удаляем всех агентов, принадлежащих пользователю
+            auto user_agents = agent_store.list_by_owner(*email_opt);
+            for (const auto& agent : user_agents) {
+                agent_store.remove(agent.agent_id);
+            }
+
+            if (!store.remove_user(*email_opt)) {
+                return json_error(res, 500, "Failed to delete profile");
+            }
+
+            json_ok(res, { {"message", "Profile and agents deleted"} });
         });
 
         // =============================================================================

@@ -35,6 +35,30 @@ class AuthRepository {
         }
     }
 
+    suspend fun getProfile(token: String): Result<ProfileResponse> {
+        return try {
+            val response = api.getProfile("Bearer $token")
+            if (response.isSuccessful && response.body() != null) Result.success(response.body()!!)
+            else Result.failure(Exception(response.errorBody()?.string() ?: "Failed to load profile"))
+        } catch (e: Exception) { Result.failure(e) }
+    }
+
+    suspend fun updateProfile(token: String, request: ProfileUpdateRequest): Result<Unit> {
+        return try {
+            val response = api.updateProfile("Bearer $token", request)
+            if (response.isSuccessful) Result.success(Unit)
+            else Result.failure(Exception(response.errorBody()?.string() ?: "Failed to update profile"))
+        } catch (e: Exception) { Result.failure(e) }
+    }
+
+    suspend fun deleteProfile(token: String): Result<Unit> {
+        return try {
+            val response = api.deleteProfile("Bearer $token")
+            if (response.isSuccessful) Result.success(Unit)
+            else Result.failure(Exception(response.errorBody()?.string() ?: "Failed to delete profile"))
+        } catch (e: Exception) { Result.failure(e) }
+    }
+
     suspend fun registerAgent(token: String, request: AgentRegistrationRequest): Result<Map<String, String>> {
         return try {
             val response = api.registerAgent("Bearer $token", request)

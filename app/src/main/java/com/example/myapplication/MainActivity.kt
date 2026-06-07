@@ -27,6 +27,7 @@ import com.example.myapplication.ui.screens.InvokeAgentScreen
 import com.example.myapplication.ui.screens.OrchestrationScreen
 import com.example.myapplication.ui.screens.MyAgentsScreen
 import com.example.myapplication.ui.screens.EditAgentScreen
+import com.example.myapplication.ui.screens.ProfileScreen
 
 class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -66,7 +67,19 @@ class MainActivity : ComponentActivity() {
                                 onNavigateToMyAgents = { navController.navigate("my_agents") },
                                 onNavigateToCreateAgent = { navController.navigate("create_agent") },
                                 onNavigateToInvoke = { navController.navigate("invoke") },
-                                onNavigateToOrchestrate = { navController.navigate("orchestrate") }
+                                onNavigateToOrchestrate = { navController.navigate("orchestrate") },
+                                onNavigateToProfile = { navController.navigate("profile") }
+                            )
+                        }
+                        composable("profile") {
+                            ProfileScreen(
+                                viewModel = mainViewModel,
+                                onBack = { navController.popBackStack() },
+                                onLoggedOut = {
+                                    navController.navigate("login") {
+                                        popUpTo(0) { inclusive = true }
+                                    }
+                                }
                             )
                         }
                         composable("catalog") {
