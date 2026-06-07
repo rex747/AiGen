@@ -306,6 +306,150 @@ def register_skills(agent):
         ))
     """.trimIndent()
 
+    val naturalLanguage = """
+        # Навык понимания естественного языка
+        def lang_1(agent_instance, input_text: str) -> str:
+        specialized_prompt = f'''[СИСТЕМНАЯ ИНСТРУКЦИЯ: НАВЫК ПОНЯТИЕ НАТУРАЛЬНОГО ЯЗЫКА]
+        Ты — ИИ-агент с превосходным навыком Понимания естественного языка (NLU). Всегда глубоко анализируй запрос: точно определяй намерение пользователя, контекст, нюансы, скрытый смысл, эмоции, возможные неоднозначности и подтекст, прежде чем отвечать или действовать, и только после полного понимания формируй ответ.
+        
+        Запрос пользователя: {input_text}'''
+        return agent_instance._call_llm(specialized_prompt, system_prompt="Ты — эксперт по пониманию естественного языка.")
+        
+        def register_skills(agent):
+        from agent import Skill
+        agent.add_skill(Skill(
+            name="Понимание естественного языка",
+            description="Семантический анализ, извлечение намерений, распознавание тональности.",
+            func=lambda task: lang_1(agent, task)
+        ))
+    """.trimIndent()
+
+    val textGeneration = """
+        # Навык генерации текста
+        def lang_2(agent_instance, input_text: str) -> str:
+        specialized_prompt = f ''' [СИСТЕМНАЯ ИНСТРУКЦИЯ: НАВЫК ГЕНЕРАЦИИ ТЕКСТА]
+         Ты — ИИ-агент с превосходным навыком Генерации текста (NLG). Всегда создавай естественный, coherentный, стилистически точный и качественный текст, строго учитывая контекст, цель, тон, целевую аудиторию и требования пользователя, делая его понятным, увлекательным и максимально соответствующим запросу.
+         
+         Запрос пользователя: {input_text}'''
+         return agent_instance._call_llm(specialized_prompt, system_prompt="Ты — эксперт по генерации текста.")
+         
+         def register_skills(agent):
+         from agent import Skill
+         agent.add_skill(Skill(
+             name="Генерация текста",
+             description="Написание статей, писем, кода, поэзии, документации.",
+             func=lambda task: lang_2(agent, task)
+         ))
+    """.trimIndent()
+
+    val multilingualitySkill = """
+        # Навык мультиязычности
+        def lang_3(agent_instance, input_text: str) -> str:
+        specialized_prompt = f''' [СИСТЕМНАЯ ИНСТРУКЦИЯ: МУЛЬТИЯЗЫЧНОСТЬ]
+        Ты — ИИ-агент с превосходным навыком многоязычности. Свободно понимай, говори и думай на множестве языков, автоматически определяй язык пользователя, сохраняй культурные нюансы и идиомы, обеспечивай точный и естественный перевод, и всегда отвечай на языке запроса пользователя.
+        
+        Запрос пользователя: {input_text}'''
+        return agent_instance._call_llm(specialized_prompt, system_prompt="Ты — эксперт по мультиязычности.")
+        
+        def register_skills(agent):
+        from agent import Skill
+        agent.add_skill(Skill(
+            name="Многоязычность",
+            description="Перевод, переключение языков, культурная адаптация.",
+            func=lambda task: lang_3(agent, task)
+        ))
+    """.trimIndent()
+
+    val dialogInteractionSkill = """
+        # Навык диалогового взаимодействия
+        def lang_4(agent_instance, input_text: str) -> str:
+        specialized_prompt = f''' [СИСТЕМНАЯ ИНСТРУКЦИЯ: ДИАЛОГОВЫЙ ИНТЕРАКТИВНЫЙ НАВЫК]
+        Ты — ИИ-агент с превосходным навыком диалогового взаимодействия. Веди естественный, плавный и живой разговор: активно слушай пользователя, поддерживай контекст всей беседы, задавай уточняющие вопросы, проявляй эмпатию, адаптируйся к его стилю общения и обеспечивай связный, полезный и приятный диалог.
+        
+        Запрос пользователя: {input_text}'''
+        return agent_instance._call_llm(specialized_prompt, system_prompt="Ты — эксперт по диалоговому взаимодействию.")
+        
+        def register_skills(agent):
+        from agent import Skill
+        agent.add_skill(Skill(
+            name="Диалоговое взаимодействие",
+            description="Ведение разговора, уточнение, управление контекстом.",
+            func=lambda task: lang_4(agent, task)
+        ))
+    """.trimIndent()
+
+    val speechRecognitionSkill = """
+        # Навык распознавания речи
+        def lang_5(agent_instance, input_text: str) -> str:
+        specialized_prompt = f''' [СИСТЕМНАЯ ИНСТРУКЦИЯ: РАСПОЗНАВАНИЕ РЕЧИ]
+        Ты — ИИ-агент с превосходным навыком распознавания речи (ASR). Точно транскрибируй голосовые сообщения и аудио в текст, учитывай акценты, шум, интонацию и контекст разговора, сохраняй естественность речи и мгновенно используй полученный текст для дальнейшего понимания и ответа.
+        
+        Запрос пользователя: {input_text}'''
+        return agent_instance._call_llm(specialized_prompt, system_prompt="Ты — эксперт по распознаванию речи (ASR).")
+        
+        def register_skills(agent):
+        from agent import Skill
+        agent.add_skill(Skill(
+            name="Распознавание речи",
+            description="Аудио → текст.",
+            func=lambda task: lang_5(agent, task)
+        ))
+    """.trimIndent()
+
+    val speechSynthesisSkill = """
+        # Навык синтеза речи
+        def lang_6(agent_instance, input_text: str) -> str:
+        specialized_prompt = f''' [СИСТЕМНАЯ ИНСТРУКЦИЯ: СИНТЕЗ речи]
+        Ты — ИИ-агент с превосходным навыком синтеза речи (TTS). Превращай текст в естественную, выразительную и живую речь: учитывай интонацию, эмоции, паузы, темп и ударения, подбирай подходящий голос и стиль произношения для максимальной естественности и соответствия контексту.
+        
+        Запрос пользователя: {input_text}'''
+        return agent_instance._call_llm(specialized_prompt, system_prompt="Ты — эксперт по синтезу речи (TTS).")
+        
+        def register_skills(agent):
+        from agent import Skill
+        agent.add_skill(Skill(
+            name="Синтез речи",
+            description="Текст → речь.",
+            func=lambda task: lang_6(agent, task)
+        ))
+    """.trimIndent()
+
+    val summarySkill = """
+        # Навык резюмирования
+        def lang_7(agent_instance, input_text: str) -> str:
+        specialized_prompt = f''' [СИСТЕМНАЯ ИНСТРУКЦИЯ: РЕЗЮМИРОВАНИЕ]
+        Ты — эксперт по резюмированию текстов. Когда пользователь даёт любой текст или содержание, создавай максимально краткое, точное и структурированное резюме, сохраняя главные идеи, ключевые факты и выводы. Убирай воду, повторения и второстепенные детали. Отвечай только резюме, если явно не просят иное.
+        
+        Запрос пользователя: {input_text}'''
+        return agent_instance._call_llm(specialized_prompt, system_prompt="Ты — эксперт по резюмированию.")
+        
+        def register_skills(agent):
+        from agent import Skill
+        agent.add_skill(Skill(
+            name="Резюмирование",
+            description="Сжатие текстов, выделение ключевых тезисов.",
+            func=lambda task: lang_7(agent, task)
+        ))
+    """.trimIndent()
+
+    val rewritingSkill = """
+        # Навык переписывания
+        def lang_8(agent_instance, input_text: str) -> str:
+        specialized_prompt = f''' [СИСТЕМНАЯ ИНСТРУКЦИЯ: ПЕРЕПИСЫВАНИЕ]
+        Ты — эксперт по переписыванию текстов. Когда пользователь даёт любой текст, переписывай его, сохраняя исходный смысл, ключевые факты и тон, но используя новые формулировки, улучшая стиль, ясность, читаемость и естественность. Убирай повторы, делай текст более лаконичным или выразительным по контексту. Отвечай только переписанным вариантом, если явно не просят иное.
+        
+        Запрос пользователя: {input_text}'''
+        return agent_instance._call_llm(specialized_prompt, system_prompt="Ты — эксперт по переписыванию.")
+        
+        def register_skills(agent):
+        from agent import Skill
+        agent.add_skill(Skill(
+            name="Переписывание",
+            description="Сжатие текстов, выделение ключевых тезисов.",
+            func=lambda task: lang_8(agent, task)
+        ))        
+    """.trimIndent()
+
     // Новая функция: возвращает код навыка по его ID
     fun skillCodeById(skillId: String): String {
         return when (skillId) {
@@ -326,6 +470,17 @@ def register_skills(agent):
             "cog_6" -> problemSolvingSkill
             "cog_7" -> trainingSkill
             "cog_8" -> memorySkill
+
+            // Реализация языковых навыков
+            "lang_1" -> naturalLanguage
+            "lang_2" -> textGeneration
+            "lang_3" -> multilingualitySkill
+            "lang_4" -> dialogInteractionSkill
+            "lang_5" -> speechRecognitionSkill
+            "lang_6" -> speechSynthesisSkill
+            "lang_7" -> summarySkill
+            "lang_8" -> rewritingSkill
+
 
             // Новые навыки – генерируем шаблонную реализацию
             else -> generateGenericSkillModule(skillId)
