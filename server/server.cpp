@@ -44,6 +44,20 @@
 
 using json = nlohmann::json;
 
+void log_message(const std::string& message);
+// Функция логирования
+void log_message(const std::string& message) {
+    auto now = std::chrono::system_clock::now();
+    auto time = std::chrono::system_clock::to_time_t(now);
+    std::cerr << "[" << std::ctime(&time) << "] " << message << std::endl;
+
+    // Также записываем в файл
+    std::ofstream log_file("server.log", std::ios::app);
+    if (log_file.is_open()) {
+        log_file << "[" << std::ctime(&time) << "] " << message << std::endl;
+    }
+}
+
 // ============================================================================
 // API ключи к LLM
 // ============================================================================
@@ -1040,28 +1054,47 @@ int main() {
         // PUT /profile (Редактирование пароля и привязка карты)
         // ---------------------------------------------------------------------
         svr.Put("/profile", [&](const httplib::Request& req, httplib::Response& res) {
+            log_message("PUT /profile - начало обработки");
+
             auto token_opt = extract_bearer(req);
-            if (!token_opt) return json_error(res, 401, "Missing token");
+            if (!token_opt) {
+                log_message("PUT /profile - отсутствует токен");
+                return json_error(res, 401, "Missing token");
+            }
+
             auto email_opt = JWT::verify(*token_opt);
-            if (!email_opt) return json_error(res, 401, "Invalid token");
+            if (!email_opt) {
+                log_message("PUT /profile - невалидный токен");
+                return json_error(res, 401, "Invalid token");
+            }
 
             auto body = json::parse(req.body, nullptr, false);
-            if (body.is_discarded()) return json_error(res, 400, "Invalid JSON");
+            if (body.is_discarded()) {
+                log_message("PUT /profile - невалидный JSON");
+                return json_error(res, 400, "Invalid JSON");
+            }
 
             std::string new_pass = body.value("password", "");
             std::string new_card_token = body.value("card_token", "");
             std::string new_card_mask = body.value("card_mask", "");
 
+            log_message("PUT /profile - email: " + *email_opt +
+                ", card_token length: " + std::to_string(new_card_token.length()) +
+                ", card_mask: " + new_card_mask);
+
             if (!new_pass.empty() && !is_valid_password(new_pass)) {
+                log_message("PUT /profile - невалидный пароль");
                 return json_error(res, 400, "Password must be 8-128 characters");
             }
 
             if (!store.update_profile(*email_opt, new_pass, new_card_token, new_card_mask)) {
+                log_message("PUT /profile - ошибка обновления БД");
                 return json_error(res, 500, "Failed to update profile");
             }
 
+            log_message("PUT /profile - успешно обновлено");
             json_ok(res, { {"message", "Profile updated"} });
-        });
+            });
 
         // ---------------------------------------------------------------------
         // DELETE /profile (Удаление аккаунта и всех связанных агентов)

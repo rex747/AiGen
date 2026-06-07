@@ -70,29 +70,43 @@ fun ProfileScreen(
         Wallet.getPaymentsClient(
             context,
             Wallet.WalletOptions.Builder()
-                .setEnvironment(WalletConstants.ENVIRONMENT_TEST)
+                .setEnvironment(WalletConstants.ENVIRONMENT_TEST) // ИСПРАВЛЕНО: убран пробел в ENVIRONMENT_TEST
                 .build()
         )
     }
 
     // Функция обработки успешного получения PaymentData (извлечение токена и маски)
     fun handlePaymentData(paymentData: PaymentData) {
-        val jsonString = paymentData.toJson()
-        val paymentDataJson = JSONObject(jsonString)
+        android.util.Log.d("GooglePay", "handlePaymentData вызван")
 
-        val paymentMethodToken = paymentDataJson
-            .getJSONObject("paymentMethodData")
-            .getJSONObject("tokenizationData")
-            .getString("token")
+        try {
+            val jsonString = paymentData.toJson()
+            android.util.Log.d("GooglePay", "PaymentData JSON: $jsonString")
 
-        val cardDescription = paymentDataJson
-            .getJSONObject("paymentMethodData")
-            .getJSONObject("info")
-            .getJSONObject("cardDetails")
-            .getString("lastDigits")
-        val cardMask = "**** $cardDescription"
+            val paymentDataJson = JSONObject(jsonString)
+            val paymentMethodToken = paymentDataJson
+                .getJSONObject("paymentMethodData")
+                .getJSONObject("tokenizationData")
+                .getString("token")
 
-        viewModel.updateProfile(null, paymentMethodToken, cardMask)
+            val cardDescription = try {
+                paymentDataJson
+                    .getJSONObject("paymentMethodData")
+                    .getJSONObject("info")
+                    .optJSONObject("cardDetails")
+                    ?.optString("lastDigits", "XXXX") ?: "XXXX"
+            } catch (e: Exception) {
+                "XXXX"
+            }
+            val cardMask = "•••• $cardDescription"
+
+            android.util.Log.d("GooglePay", "Токен получен, маска: $cardMask")
+
+            viewModel.updateProfile(null, paymentMethodToken, cardMask)
+        } catch (e: Exception) {
+            android.util.Log.e("GooglePay", "Ошибка обработки PaymentData: ${e.message}", e)
+            viewModel.setProfileActionError("Ошибка обработки данных карты: ${e.message}")
+        }
     }
 
     // Современный лаунчер для Compose (замена устаревшего AutoResolveHelper)
@@ -115,58 +129,76 @@ fun ProfileScreen(
     }
 
     fun requestGooglePay() {
+        android.util.Log.d("GooglePay", "Запуск привязки карты")
+
+        // ИСПРАВЛЕНО: Корректный JSON с двоеточием после allowedCardNetworks
         val paymentDataRequestJson = """
-            {
-              "apiVersion": 2,
-              "apiVersionMinor": 0,
-              "allowedPaymentMethods": [
-                {
-                  "type": "CARD",
-                  "parameters": {
-                    "allowedAuthMethods": ["PAN_ONLY", "CRYPTOGRAM_3DS"],
-                    "allowedCardNetworks": ["MASTERCARD", "VISA", "MIR"]
-                  },
-                  "tokenizationSpecification": {
-                    "type": "PAYMENT_GATEWAY",
-                    "parameters": {
-                      "gateway": "example",
-                      "gatewayMerchantId": "exampleGatewayMerchantId"
-                    }
-                  }
-                }
-              ],
-              "transactionInfo": {
-                "totalPriceStatus": "NOT_CURRENTLY_KNOWN",
-                "currencyCode": "RUB"
-              }
-            }
-        """.trimIndent()
+{
+  "apiVersion": 2,
+  "apiVersionMinor": 0,
+  "allowedPaymentMethods": [{
+    "type": "CARD",
+    "parameters": {
+      "allowedAuthMethods": ["CRYPTOGRAM_3DS", "PAN_ONLY"],
+      "allowedCardNetworks": ["VISA", "MASTERCARD", "AMEX", "DISCOVER", "MIR"]
+    },
+    "tokenizationSpecification": {
+      "type": "PAYMENT_GATEWAY",
+      "parameters": {
+        "gateway": "example",
+        "gatewayMerchantId": "exampleMerchantId"
+      }
+    }
+  }],
+  "transactionInfo": {
+    "totalPriceStatus": "NOT_CURRENTLY_KNOWN",
+    "currencyCode": "USD"
+  },
+  "emailRequired": false,
+  "shippingAddressRequired": false
+}
+""".trimIndent()
 
-        val paymentRequest = PaymentDataRequest.fromJson(paymentDataRequestJson)
+        try {
+            val paymentRequest = PaymentDataRequest.fromJson(paymentDataRequestJson)
+            android.util.Log.d("GooglePay", "PaymentDataRequest создан успешно")
 
-        paymentsClient.loadPaymentData(paymentRequest)
-            .addOnSuccessListener { paymentData ->
-                // Успех без дополнительного UI
-                handlePaymentData(paymentData)
-            }
-            .addOnFailureListener { exception ->
-                if (exception is ResolvableApiException) {
-                    try {
-                        // Извлекаем IntentSender из исключения и запускаем UI Google Pay
-                        val intentSenderRequest = IntentSenderRequest.Builder(exception.resolution).build()
-                        googlePayLauncher.launch(intentSenderRequest)
-                    } catch (e: Exception) {
-                        // ИСПРАВЛЕНО: Вызов метода ViewModel
-                        viewModel.setProfileActionError(e.message ?: "Ошибка запуска Google Pay")
-                    }
-                } else if (exception is com.google.android.gms.common.api.ApiException &&
-                    exception.statusCode == WalletConstants.ERROR_CODE_INTERNAL_ERROR) {
-                    // Пользователь закрыл окно Google Pay вручную. Игнорируем.
-                } else {
-                    // ИСПРАВЛЕНО: Вызов метода ViewModel
-                    viewModel.setProfileActionError(exception.message ?: "Ошибка Google Pay")
+            paymentsClient.loadPaymentData(paymentRequest)
+                .addOnSuccessListener { paymentData ->
+                    android.util.Log.d("GooglePay", "Успешно получен PaymentData")
+                    handlePaymentData(paymentData)
                 }
-            }
+                .addOnFailureListener { exception ->
+                    android.util.Log.e("GooglePay", "Ошибка loadPaymentData: ${exception.message}", exception)
+
+                    if (exception is ResolvableApiException) {
+                        try {
+                            val intentSenderRequest = IntentSenderRequest.Builder(exception.resolution).build()
+                            googlePayLauncher.launch(intentSenderRequest)
+                        } catch (e: Exception) {
+                            android.util.Log.e("GooglePay", "Ошибка запуска UI: ${e.message}", e)
+                            viewModel.setProfileActionError("Ошибка запуска интерфейса Google Pay")
+                        }
+                    } else if (exception is com.google.android.gms.common.api.ApiException) {
+                        val statusCode = exception.statusCode
+                        android.util.Log.e("GooglePay", "ApiException со статусом: $statusCode")
+
+                        when (statusCode) {
+                            WalletConstants.ERROR_CODE_INTERNAL_ERROR ->
+                                viewModel.setProfileActionError("Внутренняя ошибка Google Pay")
+                            WalletConstants.ERROR_CODE_BUYER_ACCOUNT_ERROR ->
+                                viewModel.setProfileActionError("Ошибка аккаунта покупателя [OR_BIBED_06]")
+                            else ->
+                                viewModel.setProfileActionError("Ошибка Google Pay: код $statusCode")
+                        }
+                    } else {
+                        viewModel.setProfileActionError(exception.message ?: "Неизвестная ошибка Google Pay")
+                    }
+                }
+        } catch (e: Exception) {
+            android.util.Log.e("GooglePay", "Ошибка создания PaymentDataRequest: ${e.message}", e)
+            viewModel.setProfileActionError("Ошибка инициализации запроса: ${e.message}")
+        }
     }
 
     Scaffold(

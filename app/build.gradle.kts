@@ -7,14 +7,14 @@ plugins {
 android {
     namespace = "com.example.myapplication"
     compileSdk {
-        version = release(36)
+        version = release(37)
     }
 
     defaultConfig {
         applicationId = "com.example.myapplication"
         minSdk = 24
         //noinspection OldTargetApi
-        targetSdk = 36
+        targetSdk = 37
         versionCode = 1
         versionName = "1.0"
 
