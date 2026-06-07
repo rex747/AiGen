@@ -1,3 +1,5 @@
+// ЗАМЕНИТЕ файл app/src/main/java/com/example/myapplication/billing/BillingManager.kt на:
+
 package com.example.myapplication.billing
 
 import android.content.Context
@@ -6,31 +8,70 @@ import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 
 class BillingManager(context: Context) {
+    private val _isPremium = MutableStateFlow(false)
+    val isPremium: StateFlow<Boolean> = _isPremium
+
+    private val _purchaseResult = MutableStateFlow<PurchaseResult?>(null)
+    val purchaseResult: StateFlow<PurchaseResult?> = _purchaseResult
+
+    data class PurchaseResult(
+        val success: Boolean,
+        val message: String,
+        val amount: Double = 0.0
+    )
+
     private val purchasesUpdatedListener = PurchasesUpdatedListener { billingResult, purchases ->
-        // Обработка завершённых покупок
+        when (billingResult.responseCode) {
+            BillingClient.BillingResponseCode.OK -> {
+                purchases?.let { purchaseList ->
+                    for (purchase in purchaseList) {
+                        if (purchase.purchaseState == Purchase.PurchaseState.PURCHASED) {
+                            _purchaseResult.value = PurchaseResult(
+                                success = true,
+                                message = "Purchase successful",
+                                amount = getPurchaseAmount(purchase)
+                            )
+                            // Подтверждаем покупку
+                            acknowledgePurchase(purchase)
+                        }
+                    }
+                }
+            }
+            BillingClient.BillingResponseCode.USER_CANCELED -> {
+                _purchaseResult.value = PurchaseResult(
+                    success = false,
+                    message = "User canceled purchase"
+                )
+            }
+            else -> {
+                _purchaseResult.value = PurchaseResult(
+                    success = false,
+                    message = "Purchase failed: ${billingResult.debugMessage}"
+                )
+            }
+        }
     }
 
     val billingClient = BillingClient.newBuilder(context)
         .setListener(purchasesUpdatedListener)
         .enablePendingPurchases(
             PendingPurchasesParams.newBuilder()
-                .enableOneTimeProducts() // Включает поддержку для разовых покупок (INAPP)
+                .enableOneTimeProducts()
                 .build()
         )
-        .enableAutoServiceReconnection()   // новая фича библиотеки 8.0.0
+        .enableAutoServiceReconnection()
         .build()
-
-    private val _isPremium = MutableStateFlow(false)
-    val isPremium: StateFlow<Boolean> = _isPremium
 
     fun startConnection() {
         billingClient.startConnection(object : BillingClientStateListener {
             override fun onBillingSetupFinished(billingResult: BillingResult) {
                 if (billingResult.responseCode == BillingClient.BillingResponseCode.OK) {
-                    // готов к работе
+                    queryPurchases()
                 }
             }
-            override fun onBillingServiceDisconnected() { /* переподключение */ }
+            override fun onBillingServiceDisconnected() {
+                // Переподключение обрабатывается автоматически
+            }
         })
     }
 
@@ -46,5 +87,41 @@ class BillingManager(context: Context) {
         }
     }
 
-    // Дополнительные методы: launchBillingFlow, handlePurchase и т.д.
+    fun launchBillingFlow(activity: android.app.Activity, productId: String) {
+        val productDetailsParamsList = listOf(
+            BillingFlowParams.ProductDetailsParams.newBuilder()
+                .setProductDetails(getProductDetails(productId))
+                .build()
+        )
+
+        val billingFlowParams = BillingFlowParams.newBuilder()
+            .setProductDetailsParamsList(productDetailsParamsList)
+            .build()
+
+        billingClient.launchBillingFlow(activity, billingFlowParams)
+    }
+
+    private fun acknowledgePurchase(purchase: Purchase) {
+        val consumeParams = ConsumeParams.newBuilder()
+            .setPurchaseToken(purchase.purchaseToken)
+            .build()
+
+        billingClient.consumeAsync(consumeParams) { billingResult, _ ->
+            if (billingResult.responseCode == BillingClient.BillingResponseCode.OK) {
+                // Покупка подтверждена
+            }
+        }
+    }
+
+    private fun getProductDetails(productId: String): ProductDetails {
+        // В реальной реализации нужно получить ProductDetails через queryProductDetailsAsync
+        // Здесь упрощенная версия
+        throw NotImplementedError("Product details should be fetched from BillingClient")
+    }
+
+    private fun getPurchaseAmount(purchase: Purchase): Double {
+        // Парсинг суммы из purchase.originalJson
+        // В реальности сумма должна быть получена из ProductDetails
+        return 0.0
+    }
 }

@@ -1,5 +1,6 @@
 package com.example.myapplication.ui.screens
 
+import android.annotation.SuppressLint
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
@@ -14,6 +15,7 @@ import androidx.lifecycle.viewmodel.compose.viewModel
 import com.example.myapplication.model.Agent
 import com.example.myapplication.viewmodel.MainViewModel
 
+@SuppressLint("DefaultLocale")
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun InvokeAgentScreen(
@@ -121,10 +123,16 @@ fun InvokeAgentScreen(
                         Column(modifier = Modifier.padding(12.dp)) {
                             Text("Результат:", style = MaterialTheme.typography.titleMedium)
                             Spacer(modifier = Modifier.height(4.dp))
+                            // invokeResult теперь String, поэтому обращаемся к нему напрямую
                             Text(
                                 text = invokeResult!!,
                                 style = MaterialTheme.typography.bodyMedium
                             )
+
+                            // Блок с биллинговой информацией удален,
+                            // так как сервер не передает skills_count и total_cost в ответе на /agent/invoke.
+                            // Списание средств происходит на сервере, а новый баланс
+                            // пользователь увидит в своем Личном кабинете (ProfileScreen).
                         }
                     }
                 }

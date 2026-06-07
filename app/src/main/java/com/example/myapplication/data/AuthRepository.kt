@@ -43,6 +43,32 @@ class AuthRepository {
         } catch (e: Exception) { Result.failure(e) }
     }
 
+    suspend fun getBalance(token: String): Result<BalanceResponse> {
+        return try {
+            val response = RetrofitClient.instance.getBalance("Bearer $token")
+            if (response.isSuccessful && response.body() != null) {
+                Result.success(response.body()!!)
+            } else {
+                Result.failure(Exception(response.errorBody()?.string() ?: "Failed to load balance"))
+            }
+        } catch (e: Exception) {
+            Result.failure(e)
+        }
+    }
+
+    suspend fun topupBalance(token: String, amount: Double): Result<BalanceResponse> {
+        return try {
+            val response = RetrofitClient.instance.topupBalance("Bearer $token", TopupRequest(amount))
+            if (response.isSuccessful && response.body() != null) {
+                Result.success(response.body()!!)
+            } else {
+                Result.failure(Exception(response.errorBody()?.string() ?: "Failed to topup balance"))
+            }
+        } catch (e: Exception) {
+            Result.failure(e)
+        }
+    }
+
     suspend fun updateProfile(token: String, request: ProfileUpdateRequest): Result<Unit> {
         return try {
             val response = api.updateProfile("Bearer $token", request)

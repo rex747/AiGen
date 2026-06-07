@@ -1,5 +1,6 @@
 package com.example.myapplication.ui.screens
 
+import android.annotation.SuppressLint
 import android.app.Activity
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.IntentSenderRequest
@@ -9,10 +10,11 @@ import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
-import androidx.compose.material.icons.filled.ArrowBack
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
@@ -48,7 +50,10 @@ import com.google.android.gms.wallet.PaymentsClient
 import com.google.android.gms.wallet.Wallet
 import com.google.android.gms.wallet.WalletConstants
 import org.json.JSONObject
+import androidx.compose.ui.text.input.KeyboardType
 
+
+@SuppressLint("DefaultLocale")
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun ProfileScreen(
@@ -60,6 +65,9 @@ fun ProfileScreen(
     val userProfile by viewModel.userProfile.collectAsState()
     val isLoading by viewModel.isLoading.collectAsState()
     val profileActionError by viewModel.profileActionError.collectAsState()
+    val userBalance by viewModel.userBalance.collectAsState()
+    var showTopupDialog by remember { mutableStateOf(false) }
+    var topupAmount by remember { mutableStateOf("") }
 
     var newPassword by remember { mutableStateOf("") }
     var showPasswordDialog by remember { mutableStateOf(false) }
@@ -90,12 +98,10 @@ fun ProfileScreen(
                 .getString("token")
 
             val cardDescription = try {
-                paymentDataJson
-                    .getJSONObject("paymentMethodData")
-                    .getJSONObject("info")
-                    .optJSONObject("cardDetails")
-                    ?.optString("lastDigits", "XXXX") ?: "XXXX"
-            } catch (e: Exception) {
+                val info = paymentDataJson.getJSONObject("paymentMethodData").getJSONObject("info")
+                // Пробуем получить last4 или cardDetails (зависит от версии и типа карты)
+                info.optString("last4", info.optString("cardDetails", "XXXX"))
+            } catch (_: Exception) {
                 "XXXX"
             }
             val cardMask = "•••• $cardDescription"
@@ -124,6 +130,7 @@ fun ProfileScreen(
 
     LaunchedEffect(Unit) {
         viewModel.loadProfile()
+        viewModel.loadBalance()
         // ИСПРАВЛЕНО: Вызов метода ViewModel вместо прямого присваивания .value
         viewModel.clearProfileActionError()
     }
@@ -248,9 +255,20 @@ fun ProfileScreen(
                         color = DividerDefaults.color
                     )
 
+                    Text("Баланс:", style = MaterialTheme.typography.titleMedium)
+                    Text(
+                        text = "$${String.format("%.2f", userBalance)}",
+                        style = MaterialTheme.typography.headlineMedium,
+                        color = MaterialTheme.colorScheme.primary
+                    )
+
+                    Button(onClick = { showTopupDialog = true }) {
+                        Text("Пополнить баланс")
+                    }
+
                     Text("Платежная карта:", style = MaterialTheme.typography.titleMedium)
                     Text(
-                        text = if (profile.cardMask.isNullOrEmpty()) "Карта не привязана" else profile.cardMask!!,
+                        text = if (profile.cardMask.isNullOrEmpty()) "Карта не привязана" else profile.cardMask,
                         style = MaterialTheme.typography.bodyLarge
                     )
 
@@ -292,6 +310,38 @@ fun ProfileScreen(
                 }) { Text("Сохранить") }
             },
             dismissButton = { TextButton(onClick = { showPasswordDialog = false }) { Text("Отмена") } }
+        )
+    }
+
+    if (showTopupDialog) {
+        AlertDialog(
+            onDismissRequest = { showTopupDialog = false },
+            title = { Text("Пополнение баланса") },
+            text = {
+                Column {
+                    Text("Введите сумму пополнения (в долларах):")
+                    Spacer(modifier = Modifier.height(8.dp))
+                    OutlinedTextField(
+                        value = topupAmount,
+                        onValueChange = { topupAmount = it },
+                        label = { Text("Сумма") },
+                        keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number)
+                    )
+                }
+            },
+            confirmButton = {
+                TextButton(onClick = {
+                    val amount = topupAmount.toDoubleOrNull()
+                    if (amount != null && amount > 0 && amount <= 1000) {
+                        viewModel.topupBalance(amount)
+                        topupAmount = ""
+                        showTopupDialog = false
+                    }
+                }) { Text("Пополнить") }
+            },
+            dismissButton = {
+                TextButton(onClick = { showTopupDialog = false }) { Text("Отмена") }
+            }
         )
     }
 

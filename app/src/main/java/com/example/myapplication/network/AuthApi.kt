@@ -14,6 +14,8 @@ import com.example.myapplication.model.ProfileResponse
 import retrofit2.Response
 import retrofit2.http.*
 import com.example.myapplication.model.ProfileUpdateRequest
+import com.example.myapplication.model.BalanceResponse
+import com.example.myapplication.model.TopupRequest
 interface AuthApi {
     @POST("/register")
     suspend fun register(@Body request: AuthRequest): Response<AuthResponse>
@@ -23,6 +25,15 @@ interface AuthApi {
 
     @GET("/profile")
     suspend fun getProfile(@Header("Authorization") auth: String): Response<ProfileResponse>
+
+    @GET("/balance")
+    suspend fun getBalance(@Header("Authorization") auth: String): Response<BalanceResponse>
+
+    @POST("/balance/topup")
+    suspend fun topupBalance(
+        @Header("Authorization") auth: String,
+        @Body request: TopupRequest
+    ): Response<BalanceResponse>
 
     @PUT("/profile")
     suspend fun updateProfile(

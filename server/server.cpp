@@ -74,6 +74,14 @@ namespace AiConfig {
     constexpr int MAX_TOKENS = 500;
 }
 
+// ============================================================================
+// Конфигурация платежей
+// ============================================================================
+namespace BillingConfig {
+    constexpr double SKILL_USAGE_COST = 0.10; // Стоимость использования одного навыка в долларах
+    constexpr const char* PAYMENT_GATEWAY_URL = "https://api.example.com/charge"; // URL платежного шлюза
+}
+
 // =============================================================================
 // МОДЕЛИ ДЛЯ АГЕНТОВ И ЗАДАЧ
 // =============================================================================
@@ -384,7 +392,7 @@ namespace Utils {
     std::string generate_uuid();
     void log_audit(const std::string& caller, const std::string& agent_id,
         const std::string& prompt, const std::string& result);
-    std::string call_mistral_ai(const std::string& prompt, const std::string& system_prompt = "");
+    std::string call_mistral_ai(const std::string& prompt, const std::string& system_prompt = "", const std::vector<std::string>& available_skills = {});
 
     std::string to_lower(std::string s) {
         std::transform(s.begin(), s.end(), s.begin(),
@@ -454,12 +462,26 @@ namespace Utils {
             << " | PROMPT: " << prompt
             << " | RESULT: " << result << std::endl;
     }
-    
+
+    // Структура для возврата ответа LLM с метаданными
+    struct LLMResponse {
+        std::string content;
+        std::vector<std::string> used_skills; // ВАЖНО для учета затрат: какие навыки были вызваны
+        bool parse_success = false;
+    };
+
     // Функция для вызова Mistral AI
-    std::string call_mistral_ai(const std::string& prompt, const std::string& system_prompt) {
+    std::string call_mistral_ai(const std::string& prompt, const std::string& system_prompt, const std::vector<std::string>& available_skills) {
+
         CURL* curl = curl_easy_init();
         if (!curl) {
             return "Ошибка: не удалось инициализировать CURL";
+        }
+
+        // Формируем JSON со списком доступных навыков
+        json skills_json = json::array();
+        for (const auto& skill : available_skills) {
+            skills_json.push_back(skill);
         }
 
         // Формируем массив сообщений с поддержкой роли system
@@ -473,7 +495,8 @@ namespace Utils {
             {"model", AiConfig::MISTRAL_MODEL},
             {"messages", messages},
             {"temperature", AiConfig::TEMPERATURE},
-            {"max_tokens", AiConfig::MAX_TOKENS}
+            {"max_tokens", AiConfig::MAX_TOKENS},
+            {"skills", skills_json} // Передаем список доступных навыков в запросе
         };
         std::string body_str = request_body.dump();
 
@@ -657,6 +680,7 @@ class UserStore {
         std::string hash;
         std::string card_token; // Токен платежного шлюза (PCI-DSS compliant)
         std::string card_mask;  // Последние 4 цифры (например, "**** 1234")
+        double balance = 0.0;   // Баланс пользователя
     };
 
     std::map<std::string, UserData> users_;
@@ -675,6 +699,7 @@ class UserStore {
                 ud.hash = data.value("hash", "");
                 ud.card_token = data.value("card_token", "");
                 ud.card_mask = data.value("card_mask", "");
+                ud.balance = data.value("balance", 0.0); // загрузка баланса
                 users_[email] = ud;
             }
         }
@@ -692,7 +717,8 @@ class UserStore {
                     {"salt", ud.salt},
                     {"hash", ud.hash},
                     {"card_token", ud.card_token},
-                    {"card_mask", ud.card_mask}
+                    {"card_mask", ud.card_mask},
+                    { "balance", ud.balance } // сохранение баланса
                 };
             }
         }
@@ -732,7 +758,7 @@ public:
         return Crypto::secure_compare(computed, it->second.hash);
     }
 
-    // НОВЫЙ МЕТОД: Получение данных профиля
+    // Получение данных профиля
     std::optional<UserData> get_user(const std::string& email) const {
         std::shared_lock lock(mtx_);
         auto it = users_.find(email);
@@ -740,7 +766,7 @@ public:
         return it->second;
     }
 
-    // НОВЫЙ МЕТОД: Обновление пароля и привязка карты
+    // Обновление пароля и привязка карты
     bool update_profile(const std::string& email, const std::string& new_password,
         const std::string& new_card_token, const std::string& new_card_mask) {
         std::unique_lock lock(mtx_);
@@ -760,7 +786,47 @@ public:
         return true;
     }
 
-    // НОВЫЙ МЕТОД: Полное удаление профиля
+    // Получение баланса пользователя
+    double get_balance(const std::string& email) const {
+        std::shared_lock lock(mtx_);
+        auto it = users_.find(email);
+        if (it == users_.end()) return 0.0;
+        return it->second.balance;
+    }
+
+    // Обновление баланса (пополнение/списание)
+    bool update_balance(const std::string& email, double amount) {
+        std::unique_lock lock(mtx_);
+        auto it = users_.find(email);
+        if (it == users_.end()) return false;
+
+        it->second.balance += amount;
+        if (it->second.balance < 0) {
+            it->second.balance = 0; // Защита от отрицательного баланса
+        }
+
+        lock.unlock();
+        persist();
+        return true;
+    }
+
+    // Проверка достаточности баланса
+    bool has_sufficient_balance(const std::string& email, double required_amount) const {
+        std::shared_lock lock(mtx_);
+        auto it = users_.find(email);
+        if (it == users_.end()) return false;
+        return it->second.balance >= required_amount;
+    }
+
+    // Получение информации о карте (для платежей)
+    std::pair<std::string, std::string> get_payment_info(const std::string& email) const {
+        std::shared_lock lock(mtx_);
+        auto it = users_.find(email);
+        if (it == users_.end()) return { "", "" };
+        return { it->second.card_token, it->second.card_mask };
+    }
+
+    // Полное удаление профиля
     bool remove_user(const std::string& email) {
         std::unique_lock lock(mtx_);
         auto it = users_.find(email);
@@ -895,6 +961,23 @@ bool send_email(const std::string& to_email, const std::string& subject, const s
     return success;
 }
 
+namespace Payment {
+    // Функция для списания средств с карты пользователя
+    // В продакшене здесь должен быть реальный вызов платежного шлюза
+    bool charge_card(const std::string& card_token, double amount, const std::string& description) {
+        // ИМИТАЦИЯ ПЛАТЕЖА (для тестовой среды)
+        // В реальном приложении здесь должен быть HTTP запрос к платежному шлюзу
+
+        std::cout << "[PAYMENT] Charging card token: " << card_token.substr(0, 10) << "..." << std::endl;
+        std::cout << "[PAYMENT] Amount: $" << amount << std::endl;
+        std::cout << "[PAYMENT] Description: " << description << std::endl;
+
+        // Имитация успешного платежа
+        // В реальности: проверка ответа от платежного шлюза
+        return true;
+    }
+}
+
 // =============================================================================
 // MAIN
 // =============================================================================
@@ -913,7 +996,7 @@ int main() {
                 login_limiter.cleanup();
                 register_limiter.cleanup();
             }
-        });
+            });
         AgentStore agent_store;
         TaskStore task_store;
 
@@ -931,7 +1014,7 @@ int main() {
             std::cout << "[" << std::put_time(&tm_buf, "%Y-%m-%d %H:%M:%S")
                 << "] " << req.method << " " << req.path
                 << " -> " << res.status << std::endl;
-        });
+            });
 
         // ---------------------------------------------------------------------
         // POST /register
@@ -995,7 +1078,7 @@ int main() {
                 {"email", email},
                 {"expires_in", 86400}
                 });
-        });
+            });
 
         // ---------------------------------------------------------------------
         // POST /login
@@ -1045,10 +1128,11 @@ int main() {
 
             json_ok(res, {
                 {"email", *email_opt},
-                {"card_mask", ud_opt->card_mask}
+                {"card_mask", ud_opt->card_mask},
                 // ВНИМАНИЕ: Хэш пароля не возвращается клиенту в целях безопасности
+                { "balance", ud_opt->balance } // возврат баланса
+                });
             });
-        });
 
         // ---------------------------------------------------------------------
         // PUT /profile (Редактирование пароля и привязка карты)
@@ -1116,7 +1200,7 @@ int main() {
             }
 
             json_ok(res, { {"message", "Profile and agents deleted"} });
-        });
+            });
 
         // =============================================================================
         // POST /agent/register – регистрация нового агента (требует JWT)
@@ -1188,10 +1272,10 @@ int main() {
                     {"description", a.description},
                     {"ownerEmail", a.owner_email},
                     {"skills", a.skills}
-                });
+                    });
             }
             json_ok(res, j_agents);
-        });
+            });
 
         // редактирование агента PUT /agent/{agentId}
         svr.Put(R"(/agent/([a-zA-Z0-9\-]+))", [&](const httplib::Request& req, httplib::Response& res) {
@@ -1252,8 +1336,8 @@ int main() {
             json_ok(res, {
                 {"message", "Agent updated successfully"},
                 {"agentId", agent_id}
+                });
             });
-        });
 
         // удаление агента DELETE /agent/{agentId}
         svr.Delete(R"(/agent/([a-zA-Z0-9\-]+))", [&](const httplib::Request& req, httplib::Response& res) {
@@ -1285,6 +1369,46 @@ int main() {
         });
 
         // =============================================================================
+        // GET /balance – получение баланса пользователя
+        // =============================================================================
+        svr.Get("/balance", [&](const httplib::Request& req, httplib::Response& res) {
+            auto token_opt = extract_bearer(req);
+            if (!token_opt) return json_error(res, 401, "Missing token");
+            auto email = JWT::verify(*token_opt);
+            if (!email) return json_error(res, 401, "Invalid token");
+
+            double balance = store.get_balance(*email);
+            json_ok(res, { {"balance", balance} });
+            });
+
+        // =============================================================================
+        // POST /balance/topup – пополнение баланса (имитация)
+        // =============================================================================
+        svr.Post("/balance/topup", [&](const httplib::Request& req, httplib::Response& res) {
+            auto token_opt = extract_bearer(req);
+            if (!token_opt) return json_error(res, 401, "Missing token");
+            auto email = JWT::verify(*token_opt);
+            if (!email) return json_error(res, 401, "Invalid token");
+
+            auto body = json::parse(req.body, nullptr, false);
+            if (!body.contains("amount")) {
+                return json_error(res, 400, "amount required");
+            }
+
+            double amount = body["amount"].get<double>();
+            if (amount <= 0 || amount > 1000) {
+                return json_error(res, 400, "Invalid amount (must be between 0 and 1000)");
+            }
+
+            // В реальном приложении здесь должна быть обработка платежа через Google Pay
+            // Для тестовой среды просто добавляем средства
+            store.update_balance(*email, amount);
+
+            double new_balance = store.get_balance(*email);
+            json_ok(res, { {"balance", new_balance}, {"message", "Balance topped up successfully"} });
+            });
+
+        // =============================================================================
         // POST /agent/invoke – вызов агента (никаких эмуляций!)
         // =============================================================================
         svr.Post("/agent/invoke", [&](const httplib::Request& req, httplib::Response& res) {
@@ -1303,10 +1427,36 @@ int main() {
             auto agent_opt = agent_store.find(agent_id);
             if (!agent_opt) return json_error(res, 404, "Agent not found");
 
+            // Проверка, есть ли у агента навыки
+            bool has_skills = !agent_opt->skills.empty();
+
+            if (has_skills) {
+                // Проверка баланса перед выполнением
+                double required_amount = agent_opt->skills.size() * BillingConfig::SKILL_USAGE_COST;
+                if (!store.has_sufficient_balance(*caller_email, required_amount)) {
+                    return json_error(res, 402, "Insufficient balance. Required: $" +
+                        std::to_string(required_amount) + ", Available: $" +
+                        std::to_string(store.get_balance(*caller_email)));
+                }
+            }
+
             // Формирование системного промпта на основе метаданных агента
             std::string system_prompt = "Ты — AI-агент по имени '" + agent_opt->name + "'.";
             if (!agent_opt->description.empty()) {
-                system_prompt += " Твоё предназначение: " + agent_opt->description + ".";
+                // Собираем JSON-массив с ID навыков агента
+                json skills_json = json::array();
+                for (const auto& skill_id : agent_opt->skills) {
+                    skills_json.push_back(skill_id);
+                }
+                system_prompt += " Твоё предназначение: " + agent_opt->description +
+                    " [ИНСТРУКЦИЯ ПО МЕТАДАННЫМ] В самом конце своего ответа, после основного текста, "
+                    "добавь специальную секцию в формате JSON:\n"
+                    "```metadata\n"
+                    "{\"used_skills\": [\"skill_id_1\", \"skill_id_2\"]}\n"
+                    "```\n"
+                    "где used_skills - массив ID навыков, которые ты РЕАЛЬНО использовал при ответе. "
+                    "Если не использовал ни одного навыка, укажи пустой массив []. "
+                    "Доступные навыки: " + skills_json.dump();
             }
 
             // Проверка наличия реального навыка "Анализ и синтез" (ID: cog_1)
@@ -1414,27 +1564,27 @@ int main() {
                 system_prompt += R"([АКТИВНЫЙ НАВЫК: ПАМЯТЬ] Ты — ИИ-агент с сильным навыком памяти. Всегда внимательно сохраняй важную информацию из истории разговора, организуй её, эффективно вспоминай и используй релевантные детали, факты и контекст из прошлого для обеспечения последовательности, точности и персонализации своих ответов.)";
             }
 
-			// Проверка наличия понимания естественного языка (NLU)
-			bool has_naturalLanguageSkill = false;
+            // Проверка наличия понимания естественного языка (NLU)
+            bool has_naturalLanguageSkill = false;
             for (const auto& skill_id : agent_opt->skills) {
-                if (skill_id =="lang_1") {
+                if (skill_id == "lang_1") {
                     has_naturalLanguageSkill = true;
-				}
+                }
             }
             if (has_naturalLanguageSkill) {
                 system_prompt += R"([АКТИВНЫЙ НАВЫК: ПОНЯТИЕ ЕСТЕСТВЕННОГО ЯЗЫКА] Ты — ИИ-агент с превосходным навыком Понимания естественного языка (NLU). Всегда глубоко анализируй запрос: точно определяй намерение пользователя, контекст, нюансы, скрытый смысл, эмоции, возможные неоднозначности и подтекст, прежде чем отвечать или действовать, и только после полного понимания формируй ответ.)";
-			}
+            }
 
-			// Проверка наличия генерации текста (NLG)
-			bool has_textGenerationSkill = false;
+            // Проверка наличия генерации текста (NLG)
+            bool has_textGenerationSkill = false;
             for (const auto& skill_id : agent_opt->skills) {
                 if (skill_id == "lang_2") {
                     has_textGenerationSkill = true;
                 }
-			}
+            }
             if (has_textGenerationSkill) {
-				system_prompt += R"([АКТИВНЫЙ НАВЫК: ГЕНЕРАЦИЯ ТЕКСТА] Ты — ИИ-агент с превосходным навыком Генерации текста (NLG). Всегда создавай естественный, coherentный, стилистически точный и качественный текст, строго учитывая контекст, цель, тон, целевую аудиторию и требования пользователя, делая его понятным, увлекательным и максимально соответствующим запросу.)";
-			}
+                system_prompt += R"([АКТИВНЫЙ НАВЫК: ГЕНЕРАЦИЯ ТЕКСТА] Ты — ИИ-агент с превосходным навыком Генерации текста (NLG). Всегда создавай естественный, coherentный, стилистически точный и качественный текст, строго учитывая контекст, цель, тон, целевую аудиторию и требования пользователя, делая его понятным, увлекательным и максимально соответствующим запросу.)";
+            }
 
             // Проверка мультиязычности
             bool has_multilingualitySkill = false;
@@ -1502,16 +1652,102 @@ int main() {
                 system_prompt += R"([АКТИВНЫЙ НАВЫК: ПЕРЕПИСЫВАНИЕ] Ты — эксперт по переписыванию текстов. Когда пользователь даёт любой текст, переписывай его, сохраняя исходный смысл, ключевые факты и тон, но используя новые формулировки, улучшая стиль, ясность, читаемость и естественность. Убирай повторы, делай текст более лаконичным или выразительным по контексту. Отвечай только переписанным вариантом, если явно не просят иное.)";
             }
 
-            std::string result = Utils::call_mistral_ai(prompt, system_prompt);
+            // НОВОЕ: Вызов LLM с метаданными если есть навыки
+            std::string result;
+            std::vector<std::string> used_skills;
+
+            if (has_skills) {
+                // 1. Вызываем LLM и получаем сырой ответ (который содержит блок метаданных)
+                std::string raw_response = Utils::call_mistral_ai(prompt, system_prompt, agent_opt->skills);
+
+                // 2. Создаем локальную структуру для хранения распарсенных данных
+                Utils::LLMResponse llm_response;
+                llm_response.content = raw_response;
+
+                // 3. Парсим метаданные из ответа LLM
+                size_t metadata_start = raw_response.find("```metadata");
+                if (metadata_start != std::string::npos) {
+                    size_t json_start = raw_response.find("{", metadata_start);
+                    size_t json_end = raw_response.find("}", json_start);
+
+                    if (json_start != std::string::npos && json_end != std::string::npos) {
+                        std::string metadata_json = raw_response.substr(json_start, json_end - json_start + 1);
+
+                        try {
+                            json metadata = json::parse(metadata_json);
+                            if (metadata.contains("used_skills") && metadata["used_skills"].is_array()) {
+                                for (const auto& skill : metadata["used_skills"]) {
+                                    if (skill.is_string()) {
+                                        llm_response.used_skills.push_back(skill.get<std::string>());
+                                    }
+                                }
+                                llm_response.parse_success = true;
+                            }
+                        }
+                        catch (const std::exception& e) {
+                            std::cerr << "[WARN] Failed to parse metadata: " << e.what() << std::endl;
+                        }
+                    }
+
+                    // 4. Очищаем основной ответ от блока метаданных, чтобы пользователь не видел служебный JSON
+                    llm_response.content = raw_response.substr(0, metadata_start);
+                }
+
+                // 5. Присваиваем результаты в переменные
+                result = llm_response.content;
+                used_skills = llm_response.used_skills;
+
+                // Если парсинг метаданных не удался, используем все навыки агента (fallback)
+                if (!llm_response.parse_success) {
+                    used_skills = agent_opt->skills;
+                    std::cout << "[BILLING] Metadata parsing failed, using all agent skills as fallback" << std::endl;
+                }
+
+                // НОВОЕ: Фильтрация использованных навыков (только те, что есть у агента)
+                std::vector<std::string> valid_used_skills;
+                for (const auto& skill_id : used_skills) {
+                    if (std::find(agent_opt->skills.begin(), agent_opt->skills.end(), skill_id) != agent_opt->skills.end()) {
+                        valid_used_skills.push_back(skill_id);
+                    }
+                }
+                used_skills = valid_used_skills;
+
+                // НОВОЕ: Списание средств за использованные навыки
+                double total_cost = used_skills.size() * BillingConfig::SKILL_USAGE_COST;
+                if (total_cost > 0) {
+                    auto [card_token, card_mask] = store.get_payment_info(*caller_email);
+                    if (!card_token.empty()) {
+                        bool payment_success = Payment::charge_card(card_token, total_cost,
+                            "Skills usage: " + std::to_string(used_skills.size()) + " skills");
+
+                        if (payment_success) {
+                            store.update_balance(*caller_email, -total_cost);
+                            std::cout << "[BILLING] Charged $" << total_cost << " for "
+                                << used_skills.size() << " skills from user " << *caller_email << std::endl;
+                        }
+                        else {
+                            std::cerr << "[BILLING] Payment failed for user " << *caller_email << std::endl;
+                            return json_error(res, 402, "Payment failed");
+                        }
+                    }
+                    else {
+                        return json_error(res, 402, "No payment method attached");
+                    }
+                }
+            }
+            else {
+                // Базовый агент без навыков - бесплатный
+                result = Utils::call_mistral_ai(prompt, system_prompt, {});
+            }
             Utils::log_audit(*caller_email, agent_id, prompt, result);
 
             json_ok(res, { {"result", result} });
-        });
+            });
 
         // =============================================================================
         // POST /orchestrate – запуск цепочки агентов с реальными вызовами LLM
         // =============================================================================
-        
+
         svr.Post("/orchestrate", [&](const httplib::Request& req, httplib::Response& res) {
             auto token_opt = extract_bearer(req);
             if (!token_opt) return json_error(res, 401, "Missing token");
@@ -1727,18 +1963,18 @@ int main() {
                         system_prompt += R"([АКТИВНЫЙ НАВЫК: ПЕРЕПИСЫВАНИЕ] Ты — эксперт по переписыванию текстов. Когда пользователь даёт любой текст, переписывай его, сохраняя исходный смысл, ключевые факты и тон, но используя новые формулировки, улучшая стиль, ясность, читаемость и естественность. Убирай повторы, делай текст более лаконичным или выразительным по контексту. Отвечай только переписанным вариантом, если явно не просят иное.)";
                     }
 
-                    std::string step_result = Utils::call_mistral_ai(current_payload, system_prompt);
+                    std::string step_result = Utils::call_mistral_ai(current_payload, system_prompt, agent_opt->skills);
                     Utils::log_audit(caller_email.value(), agent_id, current_payload, step_result);
                     current_payload = step_result;
                 }
                 if (!failed) {
                     task_store.update_status(task_id, "completed", "", current_payload);
                 }
-            }).detach();
+                }).detach();
 
             // 3. Немедленно возвращаем taskId
             json_ok(res, { {"taskId", task_id}, {"status", "pending"} });
-        });
+            });
 
         // =============================================================================
         // GET /task/{task_id} – получение статуса и результата задачи
@@ -1761,7 +1997,7 @@ int main() {
                 {"inputPayload", task_opt->input_payload}
             };
             json_ok(res, j);
-        });
+            });
 
         // Graceful shutdown
         std::signal(SIGINT, [](int) { std::exit(0); });

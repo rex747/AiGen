@@ -1,7 +1,7 @@
 package com.example.myapplication.model
 
 import com.google.gson.annotations.SerializedName
-import kotlinx.serialization.SerialName
+
 data class User(
     val email: String,
     val token: String? = null
@@ -10,8 +10,9 @@ data class User(
 // Ответ от сервера при запросе профиля
 data class ProfileResponse(
     val email: String,
-    @SerialName("card_mask")
-    val cardMask: String?
+    @SerializedName("card_mask")
+    val cardMask: String?,
+    val balance: Double = 0.0 // новое поле баланса пользователя
 )
 
 // Тело запроса на обновление профиля
@@ -40,4 +41,22 @@ data class GetTaskResponse(
     val status: String,   // "pending", "completed", "failed"
     val result: String,
     val inputPayload: String
+)
+
+// Модель ответа с информацией о биллинге
+data class AgentInvokeResponseWithBilling(
+    val result: String,
+    val used_skills: List<String> = emptyList(),
+    val skills_count: Int = 0,
+    val total_cost: Double = 0.0
+)
+
+// Модель ответа баланса
+data class BalanceResponse(
+    val balance: Double
+)
+
+// Модель запроса на пополнение баланса
+data class TopupRequest(
+    val amount: Double
 )

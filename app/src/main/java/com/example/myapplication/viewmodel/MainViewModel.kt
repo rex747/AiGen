@@ -31,6 +31,10 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
     val isPremium: StateFlow<Boolean> = MutableStateFlow(true)
 
     private val _userProfile = MutableStateFlow<ProfileResponse?>(null)
+
+    private val _userBalance = MutableStateFlow(0.0)
+    val userBalance: StateFlow<Double> = _userBalance
+
     val userProfile: StateFlow<ProfileResponse?> = _userProfile
 
     private val _profileActionError = MutableStateFlow<String?>(null)
@@ -84,8 +88,34 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
             val token = _currentUser.value?.token ?: return@launch
             _isLoading.value = true
             val result = withContext(Dispatchers.IO) { repository.getProfile(token) }
-            result.onSuccess { _userProfile.value = it }
+            result.onSuccess {
+                _userProfile.value = it
+                _userBalance.value = it.balance // НОВОЕ: обновление баланса из профиля
+            }
             result.onFailure { _authError.value = it.message }
+            _isLoading.value = false
+        }
+    }
+
+    fun loadBalance() {
+        viewModelScope.launch {
+            val token = _currentUser.value?.token ?: return@launch
+            val result = withContext(Dispatchers.IO) { repository.getBalance(token) }
+            result.onSuccess { _userBalance.value = it.balance }
+            result.onFailure { _authError.value = it.message }
+        }
+    }
+
+    fun topupBalance(amount: Double) {
+        viewModelScope.launch {
+            val token = _currentUser.value?.token ?: return@launch
+            _isLoading.value = true
+            val result = withContext(Dispatchers.IO) { repository.topupBalance(token, amount) }
+            result.onSuccess {
+                _userBalance.value = it.balance
+                loadProfile() // Обновляем профиль с новым балансом
+            }
+            result.onFailure { _profileActionError.value = it.message }
             _isLoading.value = false
         }
     }
@@ -96,7 +126,9 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
             _isLoading.value = true
             val request = ProfileUpdateRequest(newPassword, cardToken, cardMask)
             val result = withContext(Dispatchers.IO) { repository.updateProfile(token, request) }
-            result.onSuccess { loadProfile() }
+            if (result.isSuccess) {
+                loadProfile() // Перезагружаем данные с сервера
+            }
             result.onFailure { _profileActionError.value = it.message }
             _isLoading.value = false
         }
@@ -223,8 +255,13 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
         viewModelScope.launch {
             val token = _currentUser.value?.token ?: return@launch
             _isLoading.value = true
-            val result = withContext(Dispatchers.IO) { repository.invokeAgent(token, agentId, prompt) }
-            result.onSuccess { _invokeResult.value = it }
+            val result = withContext(Dispatchers.IO) {
+                repository.invokeAgent(token, agentId, prompt)
+            }
+            result.onSuccess {
+                _invokeResult.value = it
+                loadBalance() // Обновляем баланс после вызова
+            }
             result.onFailure { e -> _authError.value = e.message }
             _isLoading.value = false
         }
