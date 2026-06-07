@@ -1,5 +1,7 @@
 package com.example.myapplication.model
 
+import com.google.gson.annotations.SerializedName
+
 data class User(
     val email: String,
     val token: String? = null
@@ -14,7 +16,9 @@ data class ProfileResponse(
 // Тело запроса на обновление профиля
 data class ProfileUpdateRequest(
     val password: String? = null,
+    @SerializedName("card_token")
     val cardToken: String? = null,
+    @SerializedName("card_mask")
     val cardMask: String? = null
 )
 
