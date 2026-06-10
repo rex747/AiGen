@@ -10,7 +10,6 @@ import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
-import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material.icons.Icons
@@ -51,12 +50,12 @@ import com.google.android.gms.wallet.Wallet
 import com.google.android.gms.wallet.WalletConstants
 import org.json.JSONObject
 import androidx.compose.ui.text.input.KeyboardType
-import androidx.compose.foundation.layout.size
 import android.widget.Toast
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.background
 import androidx.compose.ui.graphics.Color
 import androidx.compose.foundation.clickable
+import kotlin.time.Duration.Companion.milliseconds
 
 @SuppressLint("DefaultLocale")
 @OptIn(ExperimentalMaterial3Api::class)
@@ -73,7 +72,8 @@ fun ProfileScreen(
     val userBalance by viewModel.userBalance.collectAsState()
 
     val profileError by viewModel.profileActionError.collectAsState()
-    val topupSuccess by viewModel.topupSuccess.collectAsState(initial = null)
+    val topupSuccess by viewModel.topupSuccess.collectAsState(initial = Unit)
+
 
     var showTopupDialog by remember { mutableStateOf(false) }
     var topupAmount by remember { mutableStateOf("") }
@@ -81,15 +81,23 @@ fun ProfileScreen(
     var showPasswordDialog by remember { mutableStateOf(false) }
     var showDeleteDialog by remember { mutableStateOf(false) }
 
-    // ← Наблюдение за успешным пополнением
+    // Наблюдатель успешного пополнения - закрывает диалог ТОЛЬКО после ответа сервера
     LaunchedEffect(topupSuccess) {
-        topupSuccess?.let { message ->
-            Toast.makeText(context, message, Toast.LENGTH_SHORT).show()
-            showTopupDialog = false  // ← закрываем диалог ТОЛЬКО после успеха
+        if (showTopupDialog) {
+            showTopupDialog = false
             topupAmount = ""
-            viewModel.clearTopupSuccess()  // ← очистить событие
         }
     }
+
+    LaunchedEffect(profileActionError) {
+        if (profileActionError != null && showTopupDialog) {
+            // Если возникла ошибка во время пополнения, закрываем диалог через 2 секунды
+            kotlinx.coroutines.delay(2000.milliseconds)
+            showTopupDialog = false
+            topupAmount = ""
+        }
+    }
+
 
     // ← Наблюдение за ошибками
     LaunchedEffect(profileError) {
@@ -374,26 +382,20 @@ fun ProfileScreen(
                 }
             },
             confirmButton = {
-                Button(
+                TextButton(
                     onClick = {
-                        val amount = topupAmount.toDoubleOrNull()
-                        if (amount != null && amount > 0 && amount <= 1000) {
+                        val amount = topupAmount.replace(",", ".").toDoubleOrNull()
+                        if (amount == null) {
+                            viewModel.setProfileActionError("Некорректная сумма. Используйте точку или запятую для десятичных.")
+                        } else if (amount <= 0 || amount > 1000) {
+                            viewModel.setProfileActionError("Сумма должна быть больше 0 и не более 1000")
+                        } else {
                             viewModel.topupBalance(amount)
-                            // ← НЕ закрываем диалог здесь!
-                            // Диалог закроется в LaunchedEffect ниже
+                            // НЕ закрываем диалог здесь! Он закроется через LaunchedEffect после успеха
                         }
                     },
-                    enabled = !isLoading && topupAmount.toDoubleOrNull()?.let { it > 0 && it <= 1000 } == true
-                ) {
-                    if (isLoading) {
-                        CircularProgressIndicator(
-                            modifier = Modifier.size(16.dp),
-                            strokeWidth = 2.dp
-                        )
-                    } else {
-                        Text("Пополнить")
-                    }
-                }
+                    enabled = !isLoading  // Блокируем повторные нажатия
+                ) { Text("Пополнить") }
             },
             dismissButton = {
                 TextButton(

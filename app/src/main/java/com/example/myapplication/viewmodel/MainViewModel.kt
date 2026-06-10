@@ -26,8 +26,10 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
     private val _isLoading = MutableStateFlow(false)
     val isLoading: StateFlow<Boolean> = _isLoading.asStateFlow()
 
-    private val _topupSuccess = MutableSharedFlow<String?>(replay = 1)
-    val topupSuccess: SharedFlow<String?> = _topupSuccess.asSharedFlow()
+    private val _topupSuccess = MutableSharedFlow<Unit>(replay = 0)
+    val topupSuccess: SharedFlow<Unit> = _topupSuccess
+
+
 
 
     private val repository = AuthRepository()
@@ -117,28 +119,19 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
     }
 
     fun topupBalance(amount: Double) {
-        val token = _currentUser.value?.token ?: run {
-            _profileActionError.value = "Необходима авторизация"
-            return
-        }
-
         viewModelScope.launch {
+            val token = _currentUser.value?.token ?: return@launch
             _isLoading.value = true
             _profileActionError.value = null
-
-            val result = withContext(Dispatchers.IO) {
-                repository.topupBalance(token, amount)
+            val result = withContext(Dispatchers.IO) { repository.topupBalance(token, amount) }
+            result.onSuccess {
+                _userBalance.value = it.balance
+                loadProfile()
+                _topupSuccess.emit(Unit)
             }
-
-            result.onSuccess { response ->
-                _userBalance.value = response.balance
-                _profileActionError.value = null
-                // ← СЮДА переносим сообщение о пополнении (один раз, при реальном пополнении)
-                _topupSuccess.emit("Баланс успешно пополнен на $amount")
-            }.onFailure { error ->
-                _profileActionError.value = error.message ?: "Ошибка пополнения баланса"
+            result.onFailure {
+                _profileActionError.value = it.message
             }
-
             _isLoading.value = false
         }
     }
@@ -424,7 +417,7 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
 
     fun clearTopupSuccess() {
         viewModelScope.launch {
-            _topupSuccess.emit(null)
+            _topupSuccess.emit(Unit)
         }
     }
 

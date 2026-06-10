@@ -14,6 +14,7 @@ import androidx.compose.ui.unit.dp
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.example.myapplication.model.Agent
 import com.example.myapplication.viewmodel.MainViewModel
+import androidx.compose.foundation.lazy.rememberLazyListState
 
 @SuppressLint("DefaultLocale")
 @OptIn(ExperimentalMaterial3Api::class)
@@ -28,9 +29,18 @@ fun InvokeAgentScreen(
     val isLoading by viewModel.isLoading.collectAsState()
     val authError by viewModel.authError.collectAsState()
     var prompt by remember { mutableStateOf("") }
+    val listState = rememberLazyListState() // контроль состояния прокрутки
 
     LaunchedEffect(Unit) {
         viewModel.loadAgentsCatalog()
+    }
+
+    // автоматическая прокрутка к результату при его появлении
+    LaunchedEffect(invokeResult) {
+        if (invokeResult != null && !isLoading) {
+            // Прокручиваем к последнему элементу (результату)
+            listState.animateScrollToItem(listState.layoutInfo.totalItemsCount - 1)
+        }
     }
 
     Scaffold(
@@ -48,6 +58,7 @@ fun InvokeAgentScreen(
         // ИСПРАВЛЕНИЕ: Заменяем Column с verticalScroll на LazyColumn
         // Это устраняет конфликт вложенной прокрутки (nested scrolling conflict)
         LazyColumn(
+            state = listState,
             modifier = Modifier
                 .padding(paddingValues)
                 .fillMaxSize()
