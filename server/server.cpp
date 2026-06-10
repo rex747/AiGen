@@ -708,7 +708,7 @@ class UserStore {
         }
     }
 
-    void persist() {
+    bool persist() {  // ← возвращаем bool вместо void
         json j;
         {
             std::shared_lock lock(mtx_);
@@ -718,16 +718,34 @@ class UserStore {
                     {"hash", ud.hash},
                     {"card_token", ud.card_token},
                     {"card_mask", ud.card_mask},
-                    { "balance", ud.balance } // сохранение баланса
+                    {"balance", ud.balance}
                 };
             }
         }
+
         std::ofstream file(file_path_, std::ios::trunc);
         if (!file.is_open()) {
-            std::cerr << "[ERROR] Cannot open users file for writing" << std::endl;
-            return;
+            std::cerr << "[ERROR] Cannot open users file for writing: " << file_path_ << std::endl;
+            return false;  // ← явный возврат ошибки
         }
+
         file << j.dump(2);
+
+        // КРИТИЧЕСКИ ВАЖНО: явный сброс буфера и закрытие
+        file.flush();
+        if (file.fail()) {
+            std::cerr << "[ERROR] Failed to flush users file: " << file_path_ << std::endl;
+            file.close();
+            return false;
+        }
+
+        file.close();
+        if (file.fail()) {
+            std::cerr << "[ERROR] Failed to close users file: " << file_path_ << std::endl;
+            return false;
+        }
+
+        return true;  // ← успешная запись
     }
 
 public:
@@ -802,11 +820,22 @@ public:
 
         it->second.balance += amount;
         if (it->second.balance < 0) {
-            it->second.balance = 0; // Защита от отрицательного баланса
+            it->second.balance = 0;
         }
 
+        // КРИТИЧЕСКИ ВАЖНО: persist() вызывается ДО освобождения блокировки,
+        // чтобы избежать race condition между unlock() и записью
+        bool persist_ok = persist();
         lock.unlock();
-        persist();
+
+        if (!persist_ok) {
+            // Откатываем изменение баланса, если не удалось сохранить
+            it->second.balance -= amount;
+            if (it->second.balance < 0) it->second.balance = 0;
+            std::cerr << "[ERROR] Balance update rolled back for " << email << std::endl;
+            return false;
+        }
+
         return true;
     }
 
@@ -1400,13 +1429,21 @@ int main() {
                 return json_error(res, 400, "Invalid amount (must be between 0 and 1000)");
             }
 
-            // В реальном приложении здесь должна быть обработка платежа через Google Pay
-            // Для тестовой среды просто добавляем средства
-            store.update_balance(*email, amount);
+            // КРИТИЧЕСКИ ВАЖНО: проверяем результат update_balance
+            if (!store.update_balance(*email, amount)) {
+                std::cerr << "[BILLING] Failed to persist balance update for " << *email << std::endl;
+                return json_error(res, 500, "Failed to save balance. Please try again.");
+            }
 
             double new_balance = store.get_balance(*email);
-            json_ok(res, { {"balance", new_balance}, {"message", "Balance topped up successfully"} });
-            });
+            std::cout << "[BILLING] User " << *email << " topped up $" << amount
+                << ". New balance: $" << new_balance << std::endl;
+
+            json_ok(res, {
+                {"balance", new_balance},
+                {"message", "Balance topped up successfully"}
+                });
+        });
 
         // =============================================================================
         // POST /agent/invoke – вызов агента (никаких эмуляций!)

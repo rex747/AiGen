@@ -24,7 +24,11 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
     val authError: StateFlow<String?> = _authError
 
     private val _isLoading = MutableStateFlow(false)
-    val isLoading: StateFlow<Boolean> = _isLoading
+    val isLoading: StateFlow<Boolean> = _isLoading.asStateFlow()
+
+    private val _topupSuccess = MutableSharedFlow<String?>(replay = 1)
+    val topupSuccess: SharedFlow<String?> = _topupSuccess.asSharedFlow()
+
 
     private val repository = AuthRepository()
 
@@ -88,9 +92,11 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
             val token = _currentUser.value?.token ?: return@launch
             _isLoading.value = true
             val result = withContext(Dispatchers.IO) { repository.getProfile(token) }
-            result.onSuccess {
-                _userProfile.value = it
-                _userBalance.value = it.balance // НОВОЕ: обновление баланса из профиля
+            result.onSuccess { response ->
+                _userProfile.value = response
+                _userBalance.value = response.balance
+                // ← УБРАНЫ рекурсивные вызовы loadProfile() и loadBalance()
+                // ← УБРАН ложный _topupSuccess.emit()
             }
             result.onFailure { _authError.value = it.message }
             _isLoading.value = false
@@ -101,21 +107,38 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
         viewModelScope.launch {
             val token = _currentUser.value?.token ?: return@launch
             val result = withContext(Dispatchers.IO) { repository.getBalance(token) }
-            result.onSuccess { _userBalance.value = it.balance }
+            result.onSuccess { response ->
+                _userBalance.value = response.balance
+                // ← УБРАНЫ рекурсивные вызовы loadProfile() и loadBalance()
+                // ← УБРАН ложный _topupSuccess.emit()
+            }
             result.onFailure { _authError.value = it.message }
         }
     }
 
     fun topupBalance(amount: Double) {
+        val token = _currentUser.value?.token ?: run {
+            _profileActionError.value = "Необходима авторизация"
+            return
+        }
+
         viewModelScope.launch {
-            val token = _currentUser.value?.token ?: return@launch
             _isLoading.value = true
-            val result = withContext(Dispatchers.IO) { repository.topupBalance(token, amount) }
-            result.onSuccess {
-                _userBalance.value = it.balance
-                loadProfile() // Обновляем профиль с новым балансом
+            _profileActionError.value = null
+
+            val result = withContext(Dispatchers.IO) {
+                repository.topupBalance(token, amount)
             }
-            result.onFailure { _profileActionError.value = it.message }
+
+            result.onSuccess { response ->
+                _userBalance.value = response.balance
+                _profileActionError.value = null
+                // ← СЮДА переносим сообщение о пополнении (один раз, при реальном пополнении)
+                _topupSuccess.emit("Баланс успешно пополнен на $amount")
+            }.onFailure { error ->
+                _profileActionError.value = error.message ?: "Ошибка пополнения баланса"
+            }
+
             _isLoading.value = false
         }
     }
@@ -396,6 +419,12 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
                     _authError.value = "Ошибка опроса статуса: ${e.message}"
                 }
             }
+        }
+    }
+
+    fun clearTopupSuccess() {
+        viewModelScope.launch {
+            _topupSuccess.emit(null)
         }
     }
 

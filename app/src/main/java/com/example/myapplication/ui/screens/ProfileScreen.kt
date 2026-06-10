@@ -51,7 +51,12 @@ import com.google.android.gms.wallet.Wallet
 import com.google.android.gms.wallet.WalletConstants
 import org.json.JSONObject
 import androidx.compose.ui.text.input.KeyboardType
-
+import androidx.compose.foundation.layout.size
+import android.widget.Toast
+import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.background
+import androidx.compose.ui.graphics.Color
+import androidx.compose.foundation.clickable
 
 @SuppressLint("DefaultLocale")
 @OptIn(ExperimentalMaterial3Api::class)
@@ -66,12 +71,33 @@ fun ProfileScreen(
     val isLoading by viewModel.isLoading.collectAsState()
     val profileActionError by viewModel.profileActionError.collectAsState()
     val userBalance by viewModel.userBalance.collectAsState()
+
+    val profileError by viewModel.profileActionError.collectAsState()
+    val topupSuccess by viewModel.topupSuccess.collectAsState(initial = null)
+
     var showTopupDialog by remember { mutableStateOf(false) }
     var topupAmount by remember { mutableStateOf("") }
-
     var newPassword by remember { mutableStateOf("") }
     var showPasswordDialog by remember { mutableStateOf(false) }
     var showDeleteDialog by remember { mutableStateOf(false) }
+
+    // ← Наблюдение за успешным пополнением
+    LaunchedEffect(topupSuccess) {
+        topupSuccess?.let { message ->
+            Toast.makeText(context, message, Toast.LENGTH_SHORT).show()
+            showTopupDialog = false  // ← закрываем диалог ТОЛЬКО после успеха
+            topupAmount = ""
+            viewModel.clearTopupSuccess()  // ← очистить событие
+        }
+    }
+
+    // ← Наблюдение за ошибками
+    LaunchedEffect(profileError) {
+        profileError?.let { error ->
+            Toast.makeText(context, error, Toast.LENGTH_LONG).show()
+            // ← НЕ закрываем диалог при ошибке — пользователь может исправить
+        }
+    }
 
     // Инициализация Google Pay клиента (Тестовая среда)
     val paymentsClient: PaymentsClient = remember {
@@ -314,33 +340,71 @@ fun ProfileScreen(
     }
 
     if (showTopupDialog) {
+        val isLoading by viewModel.isLoading.collectAsState()
+
         AlertDialog(
-            onDismissRequest = { showTopupDialog = false },
+            onDismissRequest = {
+                if (!isLoading) {
+                    showTopupDialog = false
+                    topupAmount = ""
+                }
+            },
             title = { Text("Пополнение баланса") },
             text = {
                 Column {
-                    Text("Введите сумму пополнения (в долларах):")
-                    Spacer(modifier = Modifier.height(8.dp))
                     OutlinedTextField(
                         value = topupAmount,
                         onValueChange = { topupAmount = it },
-                        label = { Text("Сумма") },
+                        label = { Text("Сумма (от 1 до 1000)") },
+                        enabled = !isLoading,  // ← блокировать поле во время загрузки
                         keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number)
                     )
+
+                    if (isLoading) {
+                        Box(
+                            modifier = Modifier
+                                .fillMaxSize()
+                                .background(Color.Black.copy(alpha = 0.3f))
+                                .clickable(enabled = false) { },  // ← блокировать UI
+                            contentAlignment = Alignment.Center
+                        ) {
+                            CircularProgressIndicator()
+                        }
+                    }
                 }
             },
             confirmButton = {
-                TextButton(onClick = {
-                    val amount = topupAmount.toDoubleOrNull()
-                    if (amount != null && amount > 0 && amount <= 1000) {
-                        viewModel.topupBalance(amount)
-                        topupAmount = ""
-                        showTopupDialog = false
+                Button(
+                    onClick = {
+                        val amount = topupAmount.toDoubleOrNull()
+                        if (amount != null && amount > 0 && amount <= 1000) {
+                            viewModel.topupBalance(amount)
+                            // ← НЕ закрываем диалог здесь!
+                            // Диалог закроется в LaunchedEffect ниже
+                        }
+                    },
+                    enabled = !isLoading && topupAmount.toDoubleOrNull()?.let { it > 0 && it <= 1000 } == true
+                ) {
+                    if (isLoading) {
+                        CircularProgressIndicator(
+                            modifier = Modifier.size(16.dp),
+                            strokeWidth = 2.dp
+                        )
+                    } else {
+                        Text("Пополнить")
                     }
-                }) { Text("Пополнить") }
+                }
             },
             dismissButton = {
-                TextButton(onClick = { showTopupDialog = false }) { Text("Отмена") }
+                TextButton(
+                    onClick = {
+                        showTopupDialog = false
+                        topupAmount = ""
+                    },
+                    enabled = !isLoading
+                ) {
+                    Text("Отмена")
+                }
             }
         )
     }
