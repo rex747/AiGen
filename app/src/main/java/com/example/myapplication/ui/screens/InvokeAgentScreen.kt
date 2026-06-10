@@ -15,6 +15,7 @@ import androidx.lifecycle.viewmodel.compose.viewModel
 import com.example.myapplication.model.Agent
 import com.example.myapplication.viewmodel.MainViewModel
 import androidx.compose.foundation.lazy.rememberLazyListState
+import kotlin.time.Duration.Companion.milliseconds
 
 @SuppressLint("DefaultLocale")
 @OptIn(ExperimentalMaterial3Api::class)
@@ -36,8 +37,11 @@ fun InvokeAgentScreen(
     }
 
     // автоматическая прокрутка к результату при его появлении
-    LaunchedEffect(invokeResult) {
+    LaunchedEffect(invokeResult, isLoading) {
         if (invokeResult != null && !isLoading) {
+            // Небольшая задержка необходима для того, чтобы LazyColumn
+            // успел пересчитать свой layoutInfo после добавления нового item
+            kotlinx.coroutines.delay(100.milliseconds)
             // Прокручиваем к последнему элементу (результату)
             listState.animateScrollToItem(listState.layoutInfo.totalItemsCount - 1)
         }
@@ -123,7 +127,7 @@ fun InvokeAgentScreen(
             }
 
             // Результат (теперь корректно прокручивается до самого конца)
-            if (invokeResult != null) {
+            if (!invokeResult.isNullOrBlank()) {
                 item {
                     Card(
                         modifier = Modifier.fillMaxWidth(),

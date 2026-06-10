@@ -392,7 +392,7 @@ namespace Utils {
     std::string generate_uuid();
     void log_audit(const std::string& caller, const std::string& agent_id,
         const std::string& prompt, const std::string& result);
-    std::string call_mistral_ai(const std::string& prompt, const std::string& system_prompt = "", const std::vector<std::string>& available_skills = {});
+    std::string call_mistral_ai(const std::string& prompt, const std::string& system_prompt = "");
 
     std::string to_lower(std::string s) {
         std::transform(s.begin(), s.end(), s.begin(),
@@ -471,17 +471,11 @@ namespace Utils {
     };
 
     // Функция для вызова Mistral AI
-    std::string call_mistral_ai(const std::string& prompt, const std::string& system_prompt, const std::vector<std::string>& available_skills) {
+    std::string call_mistral_ai(const std::string& prompt, const std::string& system_prompt) {
 
         CURL* curl = curl_easy_init();
         if (!curl) {
             return "Ошибка: не удалось инициализировать CURL";
-        }
-
-        // Формируем JSON со списком доступных навыков
-        json skills_json = json::array();
-        for (const auto& skill : available_skills) {
-            skills_json.push_back(skill);
         }
 
         // Формируем массив сообщений с поддержкой роли system
@@ -495,8 +489,8 @@ namespace Utils {
             {"model", AiConfig::MISTRAL_MODEL},
             {"messages", messages},
             {"temperature", AiConfig::TEMPERATURE},
-            {"max_tokens", AiConfig::MAX_TOKENS},
-            {"skills", skills_json} // Передаем список доступных навыков в запросе
+            {"max_tokens", AiConfig::MAX_TOKENS}
+            
         };
         std::string body_str = request_body.dump();
 
@@ -818,20 +812,26 @@ public:
         auto it = users_.find(email);
         if (it == users_.end()) return false;
 
+        double old_balance = it->second.balance;  // Сохраняем старое значение для отката
         it->second.balance += amount;
         if (it->second.balance < 0) {
             it->second.balance = 0;
         }
 
-        // КРИТИЧЕСКИ ВАЖНО: persist() вызывается ДО освобождения блокировки,
-        // чтобы избежать race condition между unlock() и записью
-        bool persist_ok = persist();
+        // КРИТИЧЕСКИ ВАЖНО: освобождаем блокировку ПЕРЕД вызовом persist()
+        // чтобы избежать deadlock (persist() захватывает shared_lock)
         lock.unlock();
+
+        bool persist_ok = persist();
 
         if (!persist_ok) {
             // Откатываем изменение баланса, если не удалось сохранить
-            it->second.balance -= amount;
-            if (it->second.balance < 0) it->second.balance = 0;
+            lock.lock();  // Снова захватываем блокировку для отката
+            it = users_.find(email);
+            if (it != users_.end()) {
+                it->second.balance = old_balance;  // Восстанавливаем старое значение
+            }
+            lock.unlock();
             std::cerr << "[ERROR] Balance update rolled back for " << email << std::endl;
             return false;
         }
@@ -1468,6 +1468,10 @@ int main() {
             bool has_skills = !agent_opt->skills.empty();
 
             if (has_skills) {
+                auto [card_token, card_mask] = store.get_payment_info(*caller_email);
+                if (card_token.empty()) {
+                    return json_error(res, 402, "No payment method attached. Please add a card in your profile.");
+                }
                 // Проверка баланса перед выполнением
                 double required_amount = agent_opt->skills.size() * BillingConfig::SKILL_USAGE_COST;
                 if (!store.has_sufficient_balance(*caller_email, required_amount)) {
@@ -1695,7 +1699,7 @@ int main() {
 
             if (has_skills) {
                 // 1. Вызываем LLM и получаем сырой ответ (который содержит блок метаданных)
-                std::string raw_response = Utils::call_mistral_ai(prompt, system_prompt, agent_opt->skills);
+                std::string raw_response = Utils::call_mistral_ai(prompt, system_prompt);
 
                 // 2. Создаем локальную структуру для хранения распарсенных данных
                 Utils::LLMResponse llm_response;
@@ -1758,7 +1762,11 @@ int main() {
                             "Skills usage: " + std::to_string(used_skills.size()) + " skills");
 
                         if (payment_success) {
-                            store.update_balance(*caller_email, -total_cost);
+                            if (!store.update_balance(*caller_email, -total_cost)) {
+                                std::cerr << "[BILLING] Failed to persist balance deduction for user "
+                                    << *caller_email << std::endl;
+                                return json_error(res, 500, "Failed to update balance after payment");
+                            }
                             std::cout << "[BILLING] Charged $" << total_cost << " for "
                                 << used_skills.size() << " skills from user " << *caller_email << std::endl;
                         }
@@ -1774,7 +1782,7 @@ int main() {
             }
             else {
                 // Базовый агент без навыков - бесплатный
-                result = Utils::call_mistral_ai(prompt, system_prompt, {});
+                result = Utils::call_mistral_ai(prompt, system_prompt);
             }
             Utils::log_audit(*caller_email, agent_id, prompt, result);
 
@@ -2000,7 +2008,7 @@ int main() {
                         system_prompt += R"([АКТИВНЫЙ НАВЫК: ПЕРЕПИСЫВАНИЕ] Ты — эксперт по переписыванию текстов. Когда пользователь даёт любой текст, переписывай его, сохраняя исходный смысл, ключевые факты и тон, но используя новые формулировки, улучшая стиль, ясность, читаемость и естественность. Убирай повторы, делай текст более лаконичным или выразительным по контексту. Отвечай только переписанным вариантом, если явно не просят иное.)";
                     }
 
-                    std::string step_result = Utils::call_mistral_ai(current_payload, system_prompt, agent_opt->skills);
+                    std::string step_result = Utils::call_mistral_ai(current_payload, system_prompt);
                     Utils::log_audit(caller_email.value(), agent_id, current_payload, step_result);
                     current_payload = step_result;
                 }
