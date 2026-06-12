@@ -45,17 +45,16 @@ inline uint32_t crc32_checksum(const void* data, size_t len) {
     const uint8_t* bytes = static_cast<const uint8_t*>(data);
 
     for (size_t i = 0; i < len; ++i) {
-        uint8_t byte = bytes[i];
+        crc ^= bytes[i];
         for (int j = 0; j < 8; ++j) {
-            uint32_t bit = (byte >> j) & 1;
-            uint32_t c = (crc >> 31) & 1;
-            crc = (crc << 1) | 0;
-            if (c != bit) {
-                crc ^= 0xEDB88320;  // Полином CRC32
+            if (crc & 1) {
+                crc = (crc >> 1) ^ 0xEDB88320;  // Стандартный полином CRC32
+            }
+            else {
+                crc >>= 1;
             }
         }
     }
-
     return crc ^ 0xFFFFFFFF;
 }
 
@@ -317,10 +316,21 @@ public:
         std::lock_guard<std::mutex> lock(wal_mtx_);
 
         wal_file_.close();
-        wal_file_.open(wal_path_, std::ios::trunc | std::ios::app | std::ios::binary);
+
+        // 1. Открываем с флагом trunc, чтобы гарантированно очистить файл
+        wal_file_.open(wal_path_, std::ios::out | std::ios::trunc | std::ios::binary);
+        if (wal_file_.is_open()) {
+            wal_file_.close();
+        }
+
+        // 2. Переоткрываем в режиме append для последующих записей
+        wal_file_.open(wal_path_, std::ios::app | std::ios::binary);
+
+        if (!wal_file_.is_open()) {
+            std::cerr << "[WAL] CRITICAL: Failed to reopen WAL file after truncation!" << std::endl;
+        }
 
         next_tx_id_ = 1;
-
         std::cout << "[WAL] Truncated (reset)" << std::endl;
     }
 

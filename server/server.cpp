@@ -669,6 +669,7 @@ public:
 // =============================================================================
 class UserStore {
     mutable std::shared_mutex mtx_;
+    std::mutex persist_mtx_; // Защита от гонок при записи на диск
     WalManager& wal_;
 
     // НОВАЯ СТРУКТУРА: Добавлены поля для безопасного хранения платежных данных
@@ -708,6 +709,7 @@ class UserStore {
     }
 
     bool persist() {  // ← возвращаем bool вместо void
+        std::lock_guard<std::mutex> persist_lock(persist_mtx_); // Сериализация записи
         json j;
         {
             std::shared_lock lock(mtx_);
@@ -730,22 +732,14 @@ class UserStore {
         }
 
         file << j.dump(2);
-
-        // КРИТИЧЕСКИ ВАЖНО: явный сброс буфера и закрытие
         file.flush();
         if (file.fail()) {
             std::cerr << "[ERROR] Failed to flush users file: " << file_path_ << std::endl;
             file.close();
             return false;
         }
-
         file.close();
-        if (file.fail()) {
-            std::cerr << "[ERROR] Failed to close users file: " << file_path_ << std::endl;
-            return false;
-        }
-
-        return true;  // ← успешная запись
+        return !file.fail();
     }
 
 public:
@@ -825,11 +819,12 @@ public:
 
         // Сохраняем старое значение для логирования
         double old_balance = it->second.balance;
+        uint64_t old_version = it->second.version; // <-- СОХРАНЯЕМ ДЛЯ ОТКАТА
         double new_balance = old_balance + amount;
         if (new_balance < 0) {
             new_balance = 0;
         }
-        uint64_t new_version = it->second.version + 1;
+        uint64_t new_version = old_version + 1;
 
         // ====================================================================
         // КРИТИЧЕСКИ ВАЖНО: Записываем намерение в WAL ПОД БЛОКИРОВКОЙ
@@ -860,17 +855,21 @@ public:
         bool persist_ok = persist();
 
         if (!persist_ok) {
-            // Не откатываем! WAL зафиксировал намерение (BEGIN + UPDATE)
-            // При следующем старте восстановим это состояние
+            // ЖЕСТКИЙ ОТКАТ (ROLLBACK) СОСТОЯНИЯ ПАМЯТИ
+            std::unique_lock rollback_lock(mtx_);
+            auto it_rollback = users_.find(email);
+            if (it_rollback != users_.end()) {
+                it_rollback->second.balance = old_balance;
+                it_rollback->second.version = old_version;
+            }
+            rollback_lock.unlock();
+
             wal_.log_abort(tx_id);
+            std::cerr << "[ERROR] Persist failed for tx=" << tx_id
+                << ", memory rolled back to " << old_balance << std::endl;
 
-            std::cerr << "[WARNING] Persist failed for tx=" << tx_id
-                << " user=" << email
-                << ", but WAL is consistent. Balance will be recovered on restart."
-                << std::endl;
-
-            // Для клиента — возвращаем true, так как данные консистентны!
-            return true;
+            // Возвращаем false, чтобы клиент понял, что операция не прошла
+            return false;
         }
 
         // ====================================================================
