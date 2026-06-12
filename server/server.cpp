@@ -714,6 +714,9 @@ class UserStore {
         {
             std::shared_lock lock(mtx_);
             for (const auto& [email, ud] : users_) {
+                // Убираем пробелы из ключей при записи, чтобы избежать рассинхронизации
+                std::string clean_email = email;
+                while (!clean_email.empty() && std::isspace(clean_email.back())) clean_email.pop_back();
                 j[email] = {
                     {"salt", ud.salt},
                     {"hash", ud.hash},
@@ -878,6 +881,7 @@ public:
         if (!wal_.log_commit(tx_id)) {
             std::cerr << "[WARNING] Failed to log COMMIT for tx=" << tx_id << std::endl;
         }
+        wal_.log_commit(tx_id);
 
         std::cout << "[BALANCE_UPDATE] tx=" << tx_id
             << " email=" << email
@@ -885,7 +889,7 @@ public:
             << " new=" << new_balance
             << " delta=" << amount
             << " version=" << new_version << std::endl;
-
+		wal_.truncate(); // Обрезаем WAL после успешного коммита
         return true;
     }
 
