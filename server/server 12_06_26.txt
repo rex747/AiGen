@@ -1,4 +1,4 @@
-﻿// SecureAuthServer.cpp
+// SecureAuthServer.cpp
 // =============================================================================
 // ЗАВИСИМОСТИ (NuGet / vcpkg / header-only):
 //   - nlohmann.json        (NuGet: nlohmann.json)
@@ -40,8 +40,6 @@
 #include "httplib.h"
 #include "json.hpp"
 #include "jwt-cpp/include/jwt-cpp/jwt.h"
-
-#include "wal_manager.h"
 
 
 using json = nlohmann::json;
@@ -669,7 +667,6 @@ public:
 // =============================================================================
 class UserStore {
     mutable std::shared_mutex mtx_;
-    WalManager& wal_;
 
     // НОВАЯ СТРУКТУРА: Добавлены поля для безопасного хранения платежных данных
     struct UserData {
@@ -678,7 +675,6 @@ class UserStore {
         std::string card_token; // Токен платежного шлюза (PCI-DSS compliant)
         std::string card_mask;  // Последние 4 цифры (например, "**** 1234")
         double balance = 0.0;   // Баланс пользователя
-		uint64_t version = 0;  //  Версия для консистентности баланса при concurrent update
     };
 
     std::map<std::string, UserData> users_;
@@ -698,7 +694,6 @@ class UserStore {
                 ud.card_token = data.value("card_token", "");
                 ud.card_mask = data.value("card_mask", "");
                 ud.balance = data.value("balance", 0.0); // загрузка баланса
-				ud.version = data.value("version", 0);   // загрузка версии
                 users_[email] = ud;
             }
         }
@@ -717,8 +712,7 @@ class UserStore {
                     {"hash", ud.hash},
                     {"card_token", ud.card_token},
                     {"card_mask", ud.card_mask},
-                    {"balance", ud.balance},
-                    {"version", ud.version}
+                    {"balance", ud.balance}
                 };
             }
         }
@@ -749,10 +743,7 @@ class UserStore {
     }
 
 public:
-    explicit UserStore(std::string path, WalManager& wal)
-        : file_path_(std::move(path)), wal_(wal) {
-        load();
-    }
+    explicit UserStore(std::string path) : file_path_(std::move(path)) { load(); }
 
     bool exists(const std::string& email) const {
         std::shared_lock lock(mtx_);
@@ -819,73 +810,31 @@ public:
     bool update_balance(const std::string& email, double amount) {
         std::unique_lock lock(mtx_);
         auto it = users_.find(email);
-        if (it == users_.end()) {
-            return false;
+        if (it == users_.end()) return false;
+
+        double old_balance = it->second.balance;  // Сохраняем старое значение для отката
+        it->second.balance += amount;
+        if (it->second.balance < 0) {
+            it->second.balance = 0;
         }
 
-        // Сохраняем старое значение для логирования
-        double old_balance = it->second.balance;
-        double new_balance = old_balance + amount;
-        if (new_balance < 0) {
-            new_balance = 0;
-        }
-        uint64_t new_version = it->second.version + 1;
-
-        // ====================================================================
-        // КРИТИЧЕСКИ ВАЖНО: Записываем намерение в WAL ПОД БЛОКИРОВКОЙ
-        // ====================================================================
-        uint64_t tx_id = wal_.log_begin_update(email, new_balance, new_version);
-
-        if (tx_id == 0) {
-            std::cerr << "[ERROR] Failed to log WAL entry for " << email << std::endl;
-            return false;
-        }
-
-        // ====================================================================
-        // Обновляем данные в памяти (БЫСТРО, БЕЗ ОЖИДАНИЯ ДИСКА)
-        // ====================================================================
-        it->second.balance = new_balance;
-        it->second.version = new_version;
-
-        // ====================================================================
-        // Освобождаем основную блокировку
-        // Другие потоки теперь могут читать обновлённый баланс!
-        // ====================================================================
+        // КРИТИЧЕСКИ ВАЖНО: освобождаем блокировку ПЕРЕД вызовом persist()
+        // чтобы избежать deadlock (persist() захватывает shared_lock)
         lock.unlock();
 
-        // ====================================================================
-        // Асинхронный persist() БЕЗ БЛОКИРОВКИ (может быть медленным)
-        // Если упадём тут — WAL восстановит состояние при старте
-        // ====================================================================
         bool persist_ok = persist();
 
         if (!persist_ok) {
-            // Не откатываем! WAL зафиксировал намерение (BEGIN + UPDATE)
-            // При следующем старте восстановим это состояние
-            wal_.log_abort(tx_id);
-
-            std::cerr << "[WARNING] Persist failed for tx=" << tx_id
-                << " user=" << email
-                << ", but WAL is consistent. Balance will be recovered on restart."
-                << std::endl;
-
-            // Для клиента — возвращаем true, так как данные консистентны!
-            return true;
+            // Откатываем изменение баланса, если не удалось сохранить
+            lock.lock();  // Снова захватываем блокировку для отката
+            it = users_.find(email);
+            if (it != users_.end()) {
+                it->second.balance = old_balance;  // Восстанавливаем старое значение
+            }
+            lock.unlock();
+            std::cerr << "[ERROR] Balance update rolled back for " << email << std::endl;
+            return false;
         }
-
-        // ====================================================================
-        // Фиксируем успех в WAL
-        // ====================================================================
-        if (!wal_.log_commit(tx_id)) {
-            std::cerr << "[WARNING] Failed to log COMMIT for tx=" << tx_id << std::endl;
-        }
-
-        std::cout << "[BALANCE_UPDATE] tx=" << tx_id
-            << " email=" << email
-            << " old=" << old_balance
-            << " new=" << new_balance
-            << " delta=" << amount
-            << " version=" << new_version << std::endl;
 
         return true;
     }
@@ -915,46 +864,6 @@ public:
         lock.unlock();
         persist();
         return true;
-    }
-    // ========================================================================
-// Восстановление из WAL при старте сервера
-// ========================================================================
-    void recover_from_wal() {
-        std::cout << "[RECOVERY] Starting WAL recovery..." << std::endl;
-
-        auto recovered = wal_.recover();
-
-        std::unique_lock lock(mtx_);
-
-        for (const auto& [email, recovery_data] : recovered) {
-            auto it = users_.find(email);
-            if (it != users_.end()) {
-                // Обновляем баланс только если версия из WAL новее
-                if (recovery_data.version > it->second.version) {
-                    std::cout << "[RECOVERY] Updating " << email
-                        << " balance: " << it->second.balance
-                        << " -> " << recovery_data.balance
-                        << " (version " << it->second.version
-                        << " -> " << recovery_data.version << ")"
-                        << std::endl;
-
-                    it->second.balance = recovery_data.balance;
-                    it->second.version = recovery_data.version;
-                }
-            }
-        }
-
-        lock.unlock();
-
-        // Записываем восстановленное состояние в main storage
-        if (!persist()) {
-            std::cerr << "[ERROR] Failed to persist after recovery" << std::endl;
-        }
-
-        // Очищаем WAL после успешного checkpoint
-        wal_.truncate();
-
-        std::cout << "[RECOVERY] Recovery complete" << std::endl;
     }
 };
 
@@ -1103,24 +1012,10 @@ namespace Payment {
 // =============================================================================
 int main() {
     curl_global_init(CURL_GLOBAL_ALL);
-    std::cout << "[MAIN] Starting SecureAuthServer with WAL support..." << std::endl;
+    std::cout << "[MAIN] Starting SecureAuthServer..." << std::endl;
     try {
-        // ====================================================================
-        // Инициализация WAL Manager
-        // ====================================================================
-        WalManager wal_manager("wal.log");  // Файл журнала в текущей директории
-        std::cout << "[MAIN] WAL Manager initialized" << std::endl;
-
-        // ====================================================================
-        // Теперь UserStore принимает wal_manager
-        // ====================================================================
-        UserStore store(Config::USERS_FILE, wal_manager);
+        UserStore store(Config::USERS_FILE);
         std::cout << "[INFO] Loaded users from " << Config::USERS_FILE << std::endl;
-        // ====================================================================
-        // Восстановление из WAL при старте сервера
-        // ====================================================================
-        store.recover_from_wal();
-        std::cout << "[MAIN] WAL recovery completed" << std::endl;
         RateLimiter login_limiter, register_limiter;
         std::atomic<bool> running{ true };
 
