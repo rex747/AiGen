@@ -708,26 +708,34 @@ class UserStore {
         }
     }
 
-    bool persist() {
-        std::lock_guard persist_lock(persist_mtx_);
+    bool persist(bool already_locked = false) {
         json j;
-        {
-            std::shared_lock lock(mtx_);
-            for (const auto& [email, ud] : users_) {
-                j[email] = {
-                    {"salt", ud.salt},
-                    {"hash", ud.hash},
-                    {"card_token", ud.card_token},
-                    {"card_mask", ud.card_mask},
-                    {"balance", ud.balance},
-                    {"version", ud.version}
-                };
-            }
+
+        // Захватываем shared_lock ТОЛЬКО если не держим unique_lock
+        std::shared_lock<std::shared_mutex> lock(mtx_, std::defer_lock);
+        if (!already_locked) {
+            lock.lock();
         }
 
-        // АТОМНАЯ ЗАПИСЬ: пишем во временный файл, затем rename
-        const std::string temp_path = file_path_ + ".tmp";
+        for (const auto& [email, ud] : users_) {
+            std::string clean_email = email;
+            while (!clean_email.empty() && std::isspace(clean_email.back())) clean_email.pop_back();
+            j[email] = {
+                {"salt", ud.salt},
+                {"hash", ud.hash},
+                {"card_token", ud.card_token},
+                {"card_mask", ud.card_mask},
+                {"balance", ud.balance},
+                {"version", ud.version}
+            };
+        }
 
+        if (!already_locked) {
+            lock.unlock();
+        }
+
+        // АТОМАРНАЯ ЗАПИСЬ: временный файл + rename
+        std::string temp_path = file_path_ + ".tmp";
         std::ofstream file(temp_path, std::ios::trunc);
         if (!file.is_open()) {
             std::cerr << "[ERROR] Cannot open temp file for writing: " << temp_path << std::endl;
@@ -737,17 +745,15 @@ class UserStore {
         file << j.dump(2);
         file.flush();
         if (file.fail()) {
-            std::cerr << "[ERROR] Failed to flush temp file" << std::endl;
+            std::cerr << "[ERROR] Failed to flush temp file: " << temp_path << std::endl;
             file.close();
-            std::remove(temp_path.c_str());
             return false;
         }
         file.close();
 
-        // Атомарное переименование (POSIX guaranteed atomic)
+        // Переименовываем временный файл в основной (атомарная операция)
         if (std::rename(temp_path.c_str(), file_path_.c_str()) != 0) {
-            std::cerr << "[ERROR] Failed to rename temp file to " << file_path_ << std::endl;
-            std::remove(temp_path.c_str());
+            std::cerr << "[ERROR] Failed to rename temp file to: " << file_path_ << std::endl;
             return false;
         }
 
@@ -846,29 +852,25 @@ public:
         it->second.balance = new_balance;
         it->second.version = new_version;
 
-        // НЕ освобождаем lock здесь! persist() должен видеть консистентное состояние
-        // и не допускать промежуточных изменений
-
-        //lock.unlock(); // Освобождаем только после того, как persist() получит свою блокировку
-
-        bool persist_ok = persist();
+        // НЕ ОСВОБОЖДАЕМ БЛОКИРОВКУ! Вызываем persist() с already_locked=true
+        bool persist_ok = persist(true);
 
         if (!persist_ok) {
-            std::unique_lock rollback_lock(mtx_);
-            auto it_rollback = users_.find(email);
-            if (it_rollback != users_.end()) {
-                it_rollback->second.balance = old_balance;
-                it_rollback->second.version = old_version;
-            }
-            rollback_lock.unlock();
+            // Откат в памяти (блокировка уже держится)
+            it->second.balance = old_balance;
+            it->second.version = old_version;
+
             wal_.log_abort(tx_id);
+            std::cerr << "[ERROR] Persist failed for tx=" << tx_id
+                << ", memory rolled back to " << old_balance << std::endl;
             return false;
         }
 
-        bool commit_logged = wal_.log_commit(tx_id);
-        if (!commit_logged) {
+        // Убираем дублирующий вызов!
+        if (!wal_.log_commit(tx_id)) {
             std::cerr << "[WARNING] Failed to log COMMIT for tx=" << tx_id << std::endl;
         }
+        // wal_.log_commit(tx_id);  // ← УДАЛИТЬ ЭТУ СТРОКУ!
 
         std::cout << "[BALANCE_UPDATE] tx=" << tx_id
             << " email=" << email
@@ -876,7 +878,8 @@ public:
             << " new=" << new_balance
             << " delta=" << amount
             << " version=" << new_version << std::endl;
-		wal_.truncate(); // Обрезаем WAL после успешного коммита
+
+        wal_.truncate();
         return true;
     }
 
