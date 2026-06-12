@@ -1266,6 +1266,11 @@ int main() {
             auto ud_opt = store.get_user(*email_opt);
             if (!ud_opt) return json_error(res, 404, "User not found");
 
+            // Установка заголовков для отключения кэширования
+            res.set_header("Cache-Control", "no-cache, no-store, must-revalidate");
+            res.set_header("Pragma", "no-cache");
+            res.set_header("Expires", "0");
+
             json_ok(res, {
                 {"email", *email_opt},
                 {"card_mask", ud_opt->card_mask},
@@ -1516,6 +1521,11 @@ int main() {
             if (!token_opt) return json_error(res, 401, "Missing token");
             auto email = JWT::verify(*token_opt);
             if (!email) return json_error(res, 401, "Invalid token");
+
+            // Установка заголовков для отключения кэширования
+            res.set_header("Cache-Control", "no-cache, no-store, must-revalidate");
+            res.set_header("Pragma", "no-cache");
+            res.set_header("Expires", "0");
 
             double balance = store.get_balance(*email);
             json_ok(res, { {"balance", balance} });
