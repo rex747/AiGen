@@ -17,23 +17,52 @@ import com.example.myapplication.model.ProfileUpdateRequest
 import com.example.myapplication.model.BalanceResponse
 import com.example.myapplication.model.TopupRequest
 interface AuthApi {
+    @Headers(
+        "Cache-Control: no-cache, no-store, must-revalidate",
+        "Pragma: no-cache"
+    )
     @POST("/register")
     suspend fun register(@Body request: AuthRequest): Response<AuthResponse>
+
+    @Headers(
+        "Cache-Control: no-cache, no-store, must-revalidate",
+        "Pragma: no-cache"
+    )
 
     @POST("/login")
     suspend fun login(@Body request: AuthRequest): Response<AuthResponse>
 
+    @Headers(
+        "Cache-Control: no-cache, no-store, must-revalidate",
+        "Pragma: no-cache"
+    )
+
     @GET("/profile")
     suspend fun getProfile(@Header("Authorization") auth: String): Response<ProfileResponse>
 
+    @Headers(
+        "Cache-Control: no-cache, no-store, must-revalidate",
+        "Pragma: no-cache"
+    )
+
     @GET("/balance")
     suspend fun getBalance(@Header("Authorization") auth: String): Response<BalanceResponse>
+
+    @Headers(
+        "Cache-Control: no-cache, no-store, must-revalidate",
+        "Pragma: no-cache"
+    )
 
     @POST("/balance/topup")
     suspend fun topupBalance(
         @Header("Authorization") auth: String,
         @Body request: TopupRequest
     ): Response<BalanceResponse>
+
+    @Headers(
+        "Cache-Control: no-cache, no-store, must-revalidate",
+        "Pragma: no-cache"
+    )
 
     @PUT("/profile")
     suspend fun updateProfile(
