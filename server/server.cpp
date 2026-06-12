@@ -708,15 +708,12 @@ class UserStore {
         }
     }
 
-    bool persist() {  // ← возвращаем bool вместо void
-        std::lock_guard<std::mutex> persist_lock(persist_mtx_); // Сериализация записи
+    bool persist() {
+        std::lock_guard persist_lock(persist_mtx_);
         json j;
         {
             std::shared_lock lock(mtx_);
             for (const auto& [email, ud] : users_) {
-                // Убираем пробелы из ключей при записи, чтобы избежать рассинхронизации
-                std::string clean_email = email;
-                while (!clean_email.empty() && std::isspace(clean_email.back())) clean_email.pop_back();
                 j[email] = {
                     {"salt", ud.salt},
                     {"hash", ud.hash},
@@ -728,21 +725,33 @@ class UserStore {
             }
         }
 
-        std::ofstream file(file_path_, std::ios::trunc);
+        // АТОМНАЯ ЗАПИСЬ: пишем во временный файл, затем rename
+        const std::string temp_path = file_path_ + ".tmp";
+
+        std::ofstream file(temp_path, std::ios::trunc);
         if (!file.is_open()) {
-            std::cerr << "[ERROR] Cannot open users file for writing: " << file_path_ << std::endl;
-            return false;  // ← явный возврат ошибки
+            std::cerr << "[ERROR] Cannot open temp file for writing: " << temp_path << std::endl;
+            return false;
         }
 
         file << j.dump(2);
         file.flush();
         if (file.fail()) {
-            std::cerr << "[ERROR] Failed to flush users file: " << file_path_ << std::endl;
+            std::cerr << "[ERROR] Failed to flush temp file" << std::endl;
             file.close();
+            std::remove(temp_path.c_str());
             return false;
         }
         file.close();
-        return !file.fail();
+
+        // Атомарное переименование (POSIX guaranteed atomic)
+        if (std::rename(temp_path.c_str(), file_path_.c_str()) != 0) {
+            std::cerr << "[ERROR] Failed to rename temp file to " << file_path_ << std::endl;
+            std::remove(temp_path.c_str());
+            return false;
+        }
+
+        return true;
     }
 
 public:
@@ -820,45 +829,31 @@ public:
             return false;
         }
 
-        // Сохраняем старое значение для логирования
         double old_balance = it->second.balance;
-        uint64_t old_version = it->second.version; // <-- СОХРАНЯЕМ ДЛЯ ОТКАТА
+        uint64_t old_version = it->second.version;
         double new_balance = old_balance + amount;
         if (new_balance < 0) {
             new_balance = 0;
         }
         uint64_t new_version = old_version + 1;
 
-        // ====================================================================
-        // КРИТИЧЕСКИ ВАЖНО: Записываем намерение в WAL ПОД БЛОКИРОВКОЙ
-        // ====================================================================
         uint64_t tx_id = wal_.log_begin_update(email, new_balance, new_version);
-
         if (tx_id == 0) {
             std::cerr << "[ERROR] Failed to log WAL entry for " << email << std::endl;
             return false;
         }
 
-        // ====================================================================
-        // Обновляем данные в памяти (БЫСТРО, БЕЗ ОЖИДАНИЯ ДИСКА)
-        // ====================================================================
         it->second.balance = new_balance;
         it->second.version = new_version;
 
-        // ====================================================================
-        // Освобождаем основную блокировку
-        // Другие потоки теперь могут читать обновлённый баланс!
-        // ====================================================================
-        lock.unlock();
+        // НЕ освобождаем lock здесь! persist() должен видеть консистентное состояние
+        // и не допускать промежуточных изменений
 
-        // ====================================================================
-        // Асинхронный persist() БЕЗ БЛОКИРОВКИ (может быть медленным)
-        // Если упадём тут — WAL восстановит состояние при старте
-        // ====================================================================
+        lock.unlock(); // Освобождаем только после того, как persist() получит свою блокировку
+
         bool persist_ok = persist();
 
         if (!persist_ok) {
-            // ЖЕСТКИЙ ОТКАТ (ROLLBACK) СОСТОЯНИЯ ПАМЯТИ
             std::unique_lock rollback_lock(mtx_);
             auto it_rollback = users_.find(email);
             if (it_rollback != users_.end()) {
@@ -866,22 +861,14 @@ public:
                 it_rollback->second.version = old_version;
             }
             rollback_lock.unlock();
-
             wal_.log_abort(tx_id);
-            std::cerr << "[ERROR] Persist failed for tx=" << tx_id
-                << ", memory rolled back to " << old_balance << std::endl;
-
-            // Возвращаем false, чтобы клиент понял, что операция не прошла
             return false;
         }
 
-        // ====================================================================
-        // Фиксируем успех в WAL
-        // ====================================================================
-        if (!wal_.log_commit(tx_id)) {
+        bool commit_logged = wal_.log_commit(tx_id);
+        if (!commit_logged) {
             std::cerr << "[WARNING] Failed to log COMMIT for tx=" << tx_id << std::endl;
         }
-        wal_.log_commit(tx_id);
 
         std::cout << "[BALANCE_UPDATE] tx=" << tx_id
             << " email=" << email
@@ -919,16 +906,20 @@ public:
         persist();
         return true;
     }
-    // ========================================================================
+// ========================================================================
 // Восстановление из WAL при старте сервера
 // ========================================================================
     void recover_from_wal() {
         std::cout << "[RECOVERY] Starting WAL recovery..." << std::endl;
         auto recovered = wal_.recover();
 
-        std::unique_lock lock(mtx_);
+        if (recovered.empty()) {
+            std::cout << "[RECOVERY] No entries to recover" << std::endl;
+            wal_.truncate(); // OK — WAL пустой или валидный но не нуждается в recovery
+            return;
+        }
 
-        // Сохраняем снапшот памяти для возможного отката
+        std::unique_lock lock(mtx_);
         std::map<std::string, std::pair<double, uint64_t>> memory_snapshot;
 
         for (const auto& [email, recovery_data] : recovered) {
@@ -936,7 +927,6 @@ public:
             if (it != users_.end()) {
                 if (recovery_data.version > it->second.version) {
                     memory_snapshot[email] = { it->second.balance, it->second.version };
-
                     it->second.balance = recovery_data.balance;
                     it->second.version = recovery_data.version;
                 }
@@ -946,8 +936,6 @@ public:
 
         if (!persist()) {
             std::cerr << "[ERROR] Failed to persist after recovery. ROLLING BACK MEMORY!" << std::endl;
-
-            // ЖЕСТКИЙ ОТКАТ: возвращаем в память значения из users.json (1098.3)
             std::unique_lock rollback_lock(mtx_);
             for (const auto& [email, old_state] : memory_snapshot) {
                 auto it = users_.find(email);
@@ -957,9 +945,11 @@ public:
                 }
             }
             rollback_lock.unlock();
+            // НЕ вызываем truncate() — оставляем WAL для следующей попытки
+            return;
         }
 
-        wal_.truncate();
+        wal_.truncate(); // Только после УСПЕШНОГО persist()
         std::cout << "[RECOVERY] Recovery complete" << std::endl;
     }
 };
