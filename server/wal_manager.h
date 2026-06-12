@@ -315,18 +315,22 @@ public:
     void truncate() {
         std::lock_guard<std::mutex> lock(wal_mtx_);
 
-        wal_file_.close();
-
-        // 1. Открываем с флагом trunc, чтобы гарантированно очистить файл
-        wal_file_.open(wal_path_, std::ios::out | std::ios::trunc | std::ios::binary);
         if (wal_file_.is_open()) {
             wal_file_.close();
         }
 
-        // 2. Переоткрываем в режиме append для последующих записей
+        // КРИТИЧЕСКИ ВАЖНО: Сбрасываем флаги ошибок перед переоткрытием
+        wal_file_.clear();
+
+        wal_file_.open(wal_path_, std::ios::out | std::ios::trunc | std::ios::binary);
+        if (wal_file_.is_open()) {
+            wal_file_.close();
+            wal_file_.clear();
+        }
+
         wal_file_.open(wal_path_, std::ios::app | std::ios::binary);
 
-        if (!wal_file_.is_open()) {
+        if (!wal_file_.good()) {
             std::cerr << "[WAL] CRITICAL: Failed to reopen WAL file after truncation!" << std::endl;
         }
 

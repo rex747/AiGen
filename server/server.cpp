@@ -920,39 +920,42 @@ public:
 // ========================================================================
     void recover_from_wal() {
         std::cout << "[RECOVERY] Starting WAL recovery..." << std::endl;
-
         auto recovered = wal_.recover();
 
         std::unique_lock lock(mtx_);
 
+        // Сохраняем снапшот памяти для возможного отката
+        std::map<std::string, std::pair<double, uint64_t>> memory_snapshot;
+
         for (const auto& [email, recovery_data] : recovered) {
             auto it = users_.find(email);
             if (it != users_.end()) {
-                // Обновляем баланс только если версия из WAL новее
                 if (recovery_data.version > it->second.version) {
-                    std::cout << "[RECOVERY] Updating " << email
-                        << " balance: " << it->second.balance
-                        << " -> " << recovery_data.balance
-                        << " (version " << it->second.version
-                        << " -> " << recovery_data.version << ")"
-                        << std::endl;
+                    memory_snapshot[email] = { it->second.balance, it->second.version };
 
                     it->second.balance = recovery_data.balance;
                     it->second.version = recovery_data.version;
                 }
             }
         }
-
         lock.unlock();
 
-        // Записываем восстановленное состояние в main storage
         if (!persist()) {
-            std::cerr << "[ERROR] Failed to persist after recovery" << std::endl;
+            std::cerr << "[ERROR] Failed to persist after recovery. ROLLING BACK MEMORY!" << std::endl;
+
+            // ЖЕСТКИЙ ОТКАТ: возвращаем в память значения из users.json (1098.3)
+            std::unique_lock rollback_lock(mtx_);
+            for (const auto& [email, old_state] : memory_snapshot) {
+                auto it = users_.find(email);
+                if (it != users_.end()) {
+                    it->second.balance = old_state.first;
+                    it->second.version = old_state.second;
+                }
+            }
+            rollback_lock.unlock();
         }
 
-        // Очищаем WAL после успешного checkpoint
         wal_.truncate();
-
         std::cout << "[RECOVERY] Recovery complete" << std::endl;
     }
 };
