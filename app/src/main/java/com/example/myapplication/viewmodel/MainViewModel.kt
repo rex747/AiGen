@@ -43,6 +43,11 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
 
     val userProfile: StateFlow<ProfileResponse?> = _userProfile
 
+    // ===== ДОБАВЛЕНО: Публичный доступ к токену авторизации =====
+    val token: String
+        get() = _currentUser.value?.token ?: ""
+    // =============================================================
+
     private val _profileActionError = MutableStateFlow<String?>(null)
     val profileActionError: StateFlow<String?> = _profileActionError
 

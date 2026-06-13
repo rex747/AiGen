@@ -1,0 +1,1909 @@
+package com.example.myapplication.ui.onboarding
+
+import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
+import androidx.compose.material3.*
+import androidx.compose.runtime.*
+import androidx.compose.ui.Alignment
+import androidx.compose.ui.Modifier
+import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextAlign
+import androidx.compose.ui.unit.dp
+import com.example.myapplication.model.OnboardingData
+import com.example.myapplication.ui.theme.*
+import androidx.compose.foundation.shape.RoundedCornerShape
+
+// ============================================================================
+// КАРТОЧКИ 1-3: КРАТКИЙ РАССКАЗ О ПРИЛОЖЕНИИ
+// ============================================================================
+
+/**
+ * Карточка 1: Введение - B2B платформа для координации ИИ-агентов
+ */
+@Composable
+fun OnboardingCard1_Introduction(
+    onNext: () -> Unit
+) {
+    Column(
+        modifier = Modifier
+            .fillMaxSize()
+            .padding(24.dp),
+        horizontalAlignment = Alignment.CenterHorizontally,
+        verticalArrangement = Arrangement.Center
+    ) {
+        OnboardingCardTitle(
+            title = "AiGen",
+            subtitle = "B2B платформа для координации ИИ-агентов разных компаний"
+        )
+
+        Spacer(modifier = Modifier.height(32.dp))
+
+        Text(
+            text = "Объединяйте AI-агентов из разных организаций в единую экосистему для решения сложных бизнес-задач",
+            style = MaterialTheme.typography.bodyLarge,
+            textAlign = TextAlign.Center,
+            color = MaterialTheme.colorScheme.onBackground.copy(alpha = 0.7f)
+        )
+
+        Spacer(modifier = Modifier.height(48.dp))
+
+        OnboardingNextButton(
+            text = "Начать",
+            onClick = onNext
+        )
+    }
+}
+
+/**
+ * Карточка 2: Основные возможности платформы
+ */
+@Composable
+fun OnboardingCard2_Features(
+    onNext: () -> Unit,
+    onBack: () -> Unit
+) {
+    Column(
+        modifier = Modifier
+            .fillMaxSize()
+            .padding(24.dp)
+            .verticalScroll(rememberScrollState()),
+        horizontalAlignment = Alignment.CenterHorizontally,
+        verticalArrangement = Arrangement.Center
+    ) {
+        OnboardingCardTitle(
+            title = "Возможности платформы",
+            subtitle = "Всё, что нужно для эффективной работы с AI"
+        )
+
+        Spacer(modifier = Modifier.height(32.dp))
+
+        FeatureItem(
+            icon = "🤖",
+            title = "Маркетплейс агентов",
+            description = "Выбирайте готовых AI-агентов или создавайте своих"
+        )
+
+        Spacer(modifier = Modifier.height(16.dp))
+
+        FeatureItem(
+            icon = "🔗",
+            title = "Оркестрация процессов",
+            description = "Связывайте агентов в цепочки для автоматизации сложных задач"
+        )
+
+        Spacer(modifier = Modifier.height(16.dp))
+
+        FeatureItem(
+            icon = "💡",
+            title = "Навыки агентов",
+            description = "Добавляйте специализированные навыки для расширения возможностей"
+        )
+
+        Spacer(modifier = Modifier.height(48.dp))
+
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.SpaceBetween
+        ) {
+            OnboardingBackButton(onClick = onBack)
+            OnboardingNextButton(
+                text = "Далее",
+                onClick = onNext,
+                modifier = Modifier.weight(0.7f)
+            )
+        }
+    }
+}
+
+/**
+ * Карточка 3: Ценность платформы
+ */
+@Composable
+fun OnboardingCard3_Value(
+    onNext: () -> Unit,
+    onBack: () -> Unit
+) {
+    Column(
+        modifier = Modifier
+            .fillMaxSize()
+            .padding(24.dp),
+        horizontalAlignment = Alignment.CenterHorizontally,
+        verticalArrangement = Arrangement.Center
+    ) {
+        OnboardingCardTitle(
+            title = "Почему AiGen?",
+            subtitle = "Инфраструктурный проект нового поколения"
+        )
+
+        Spacer(modifier = Modifier.height(32.dp))
+
+        ValueItem(
+            value = "10x",
+            label = "Ускорение бизнес-процессов"
+        )
+
+        Spacer(modifier = Modifier.height(24.dp))
+
+        ValueItem(
+            value = "24/7",
+            label = "Автоматическая работа агентов"
+        )
+
+        Spacer(modifier = Modifier.height(24.dp))
+
+        ValueItem(
+            value = "100%",
+            label = "Безопасный обмен данными"
+        )
+
+        Spacer(modifier = Modifier.height(48.dp))
+
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.SpaceBetween
+        ) {
+            OnboardingBackButton(onClick = onBack)
+            OnboardingNextButton(
+                text = "Далее",
+                onClick = onNext,
+                modifier = Modifier.weight(0.7f)
+            )
+        }
+    }
+}
+
+// ============================================================================
+// КАРТОЧКИ 4-6: ИНФОРМАЦИЯ О КЛИЕНТЕ
+// ============================================================================
+
+/**
+ * Карточка 4: Для чего нужны AI-агенты
+ */
+@Composable
+fun OnboardingCard4_AiPurpose(
+    aiPurpose: String,
+    onPurposeSelected: (String) -> Unit,
+    onNext: () -> Unit,
+    onBack: () -> Unit
+) {
+    var selectedPurpose by remember { mutableStateOf(aiPurpose) }
+
+    Column(
+        modifier = Modifier
+            .fillMaxSize()
+            .padding(24.dp)
+            .verticalScroll(rememberScrollState()),
+        horizontalAlignment = Alignment.CenterHorizontally
+    ) {
+        Spacer(modifier = Modifier.height(32.dp))
+
+        OnboardingCardTitle(
+            title = "Для чего вам нужны AI-агенты?",
+            subtitle = "Выберите основную цель"
+        )
+
+        Spacer(modifier = Modifier.height(32.dp))
+
+        val purposes = listOf(
+            "Автоматизация рутинных задач",
+            "Анализ данных и отчетность",
+            "Обслуживание клиентов",
+            "Маркетинг и продажи",
+            "Управление проектами",
+            "Другое"
+        )
+
+        purposes.forEach { purpose ->
+            PurposeOption(
+                text = purpose,
+                selected = selectedPurpose == purpose,
+                onClick = { selectedPurpose = purpose }
+            )
+            Spacer(modifier = Modifier.height(12.dp))
+        }
+
+        Spacer(modifier = Modifier.height(32.dp))
+
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.SpaceBetween
+        ) {
+            OnboardingBackButton(onClick = onBack)
+            OnboardingNextButton(
+                text = "Далее",
+                enabled = selectedPurpose.isNotBlank(),
+                onClick = {
+                    onPurposeSelected(selectedPurpose)
+                    onNext()
+                },
+                modifier = Modifier.weight(0.7f)
+            )
+        }
+    }
+}
+
+/**
+ * Карточка 5: Сфера применения
+ */
+@Composable
+fun OnboardingCard5_Industry(
+    industry: String,
+    onIndustrySelected: (String) -> Unit,
+    onNext: () -> Unit,
+    onBack: () -> Unit
+) {
+    var selectedIndustry by remember { mutableStateOf(industry) }
+
+    Column(
+        modifier = Modifier
+            .fillMaxSize()
+            .padding(24.dp)
+            .verticalScroll(rememberScrollState()),
+        horizontalAlignment = Alignment.CenterHorizontally
+    ) {
+        Spacer(modifier = Modifier.height(32.dp))
+
+        OnboardingCardTitle(
+            title = "В какой сфере вы работаете?",
+            subtitle = "Это поможет подобрать подходящих агентов"
+        )
+
+        Spacer(modifier = Modifier.height(32.dp))
+
+        val industries = listOf(
+            "Финансы и банкинг",
+            "Ритейл и e-commerce",
+            "Производство",
+            "Логистика",
+            "Здравоохранение",
+            "Образование",
+            "IT и технологии",
+            "Другое"
+        )
+
+        industries.forEach { ind ->
+            PurposeOption(
+                text = ind,
+                selected = selectedIndustry == ind,
+                onClick = { selectedIndustry = ind }
+            )
+            Spacer(modifier = Modifier.height(12.dp))
+        }
+
+        Spacer(modifier = Modifier.height(32.dp))
+
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.SpaceBetween
+        ) {
+            OnboardingBackButton(onClick = onBack)
+            OnboardingNextButton(
+                text = "Далее",
+                enabled = selectedIndustry.isNotBlank(),
+                onClick = {
+                    onIndustrySelected(selectedIndustry)
+                    onNext()
+                },
+                modifier = Modifier.weight(0.7f)
+            )
+        }
+    }
+}
+
+/**
+ * Карточка 6: Необходимые навыки агентов
+ */
+@Composable
+fun OnboardingCard6_RequiredSkills(
+    selectedSkills: List<String>,
+    onSkillsChanged: (List<String>) -> Unit,
+    onNext: () -> Unit,
+    onBack: () -> Unit
+) {
+    var skills by remember { mutableStateOf(selectedSkills.toMutableSet()) }
+
+    Column(
+        modifier = Modifier
+            .fillMaxSize()
+            .padding(24.dp)
+            .verticalScroll(rememberScrollState()),
+        horizontalAlignment = Alignment.CenterHorizontally
+    ) {
+        Spacer(modifier = Modifier.height(32.dp))
+
+        OnboardingCardTitle(
+            title = "Какие навыки нужны вашим агентам?",
+            subtitle = "Выберите все подходящие варианты"
+        )
+
+        Spacer(modifier = Modifier.height(32.dp))
+
+        val availableSkills = listOf(
+            "Обработка естественного языка",
+            "Компьютерное зрение",
+            "Анализ данных",
+            "Генерация контента",
+            "Интеграция с API",
+            "Машинное обучение",
+            "Автоматизация процессов",
+            "Работа с документами"
+        )
+
+        availableSkills.forEach { skill ->
+            SkillCheckbox(
+                text = skill,
+                checked = skills.contains(skill),
+                onCheckedChange = { checked ->
+                    if (checked) {
+                        skills.add(skill)
+                    } else {
+                        skills.remove(skill)
+                    }
+                }
+            )
+            Spacer(modifier = Modifier.height(12.dp))
+        }
+
+        Spacer(modifier = Modifier.height(32.dp))
+
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.SpaceBetween
+        ) {
+            OnboardingBackButton(onClick = onBack)
+            OnboardingNextButton(
+                text = "Далее",
+                enabled = skills.isNotEmpty(),
+                onClick = {
+                    onSkillsChanged(skills.toList())
+                    onNext()
+                },
+                modifier = Modifier.weight(0.7f)
+            )
+        }
+    }
+}
+
+// ============================================================================
+// КАРТОЧКИ 7-9: ВРЕМЯ РЕШЕНИЯ ЗАДАЧ
+// ============================================================================
+
+/**
+ * Карточка 7: Текущее время решения задач
+ */
+@Composable
+fun OnboardingCard7_CurrentDuration(
+    currentDuration: Int,
+    onDurationChanged: (Int) -> Unit,
+    onNext: () -> Unit,
+    onBack: () -> Unit
+) {
+    var duration by remember { mutableStateOf(currentDuration.toFloat()) }
+
+    Column(
+        modifier = Modifier
+            .fillMaxSize()
+            .padding(24.dp),
+        horizontalAlignment = Alignment.CenterHorizontally,
+        verticalArrangement = Arrangement.Center
+    ) {
+        OnboardingCardTitle(
+            title = "Сколько времени занимают ваши задачи?",
+            subtitle = "Укажите среднее время выполнения типичной задачи"
+        )
+
+        Spacer(modifier = Modifier.height(48.dp))
+
+        Text(
+            text = "${duration.toInt()} часов",
+            style = MaterialTheme.typography.displayMedium,
+            fontWeight = FontWeight.Bold,
+            color = PrimaryLight
+        )
+
+        Spacer(modifier = Modifier.height(24.dp))
+
+        Slider(
+            value = duration,
+            onValueChange = { duration = it },
+            valueRange = 1f..100f,
+            steps = 98,
+            modifier = Modifier.fillMaxWidth()
+        )
+
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.SpaceBetween
+        ) {
+            Text("1 час", style = MaterialTheme.typography.labelSmall)
+            Text("100 часов", style = MaterialTheme.typography.labelSmall)
+        }
+
+        Spacer(modifier = Modifier.height(48.dp))
+
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.SpaceBetween
+        ) {
+            OnboardingBackButton(onClick = onBack)
+            OnboardingNextButton(
+                text = "Далее",
+                onClick = {
+                    onDurationChanged(duration.toInt())
+                    onNext()
+                },
+                modifier = Modifier.weight(0.7f)
+            )
+        }
+    }
+}
+
+/**
+ * Карточка 8: Ожидаемое время с AI-агентами
+ */
+@Composable
+fun OnboardingCard8_EstimatedAiDuration(
+    estimatedDuration: Int,
+    onDurationChanged: (Int) -> Unit,
+    onNext: () -> Unit,
+    onBack: () -> Unit
+) {
+    var duration by remember { mutableStateOf(estimatedDuration.toFloat().coerceAtLeast(1f)) }
+
+    Column(
+        modifier = Modifier
+            .fillMaxSize()
+            .padding(24.dp),
+        horizontalAlignment = Alignment.CenterHorizontally,
+        verticalArrangement = Arrangement.Center
+    ) {
+        OnboardingCardTitle(
+            title = "Сколько времени это займет с AI?",
+            subtitle = "Ожидаемое время выполнения с помощью AI-агентов"
+        )
+
+        Spacer(modifier = Modifier.height(48.dp))
+
+        Text(
+            text = "${duration.toInt()} часов",
+            style = MaterialTheme.typography.displayMedium,
+            fontWeight = FontWeight.Bold,
+            color = SecondaryLight
+        )
+
+        Spacer(modifier = Modifier.height(24.dp))
+
+        Slider(
+            value = duration,
+            onValueChange = { duration = it },
+            valueRange = 1f..100f,
+            steps = 98,
+            modifier = Modifier.fillMaxWidth()
+        )
+
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.SpaceBetween
+        ) {
+            Text("1 час", style = MaterialTheme.typography.labelSmall)
+            Text("100 часов", style = MaterialTheme.typography.labelSmall)
+        }
+
+        Spacer(modifier = Modifier.height(16.dp))
+
+        Text(
+            text = "💡 AI-агенты обычно ускоряют процессы в 5-10 раз",
+            style = MaterialTheme.typography.bodySmall,
+            color = MaterialTheme.colorScheme.onBackground.copy(alpha = 0.6f),
+            textAlign = TextAlign.Center
+        )
+
+        Spacer(modifier = Modifier.height(48.dp))
+
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.SpaceBetween
+        ) {
+            OnboardingBackButton(onClick = onBack)
+            OnboardingNextButton(
+                text = "Далее",
+                onClick = {
+                    onDurationChanged(duration.toInt())
+                    onNext()
+                },
+                modifier = Modifier.weight(0.7f)
+            )
+        }
+    }
+}
+
+/**
+ * Карточка 9: График сравнения времени
+ */
+@Composable
+fun OnboardingCard9_TimeComparisonChart(
+    currentDuration: Int,
+    estimatedDuration: Int,
+    onNext: () -> Unit,
+    onBack: () -> Unit
+) {
+    val timeSaved = currentDuration - estimatedDuration
+    val percentageSaved = if (currentDuration > 0) {
+        ((timeSaved.toFloat() / currentDuration) * 100).toInt()
+    } else 0
+
+    Column(
+        modifier = Modifier
+            .fillMaxSize()
+            .padding(24.dp),
+        horizontalAlignment = Alignment.CenterHorizontally,
+        verticalArrangement = Arrangement.Center
+    ) {
+        OnboardingCardTitle(
+            title = "Экономия времени с AI",
+            subtitle = "Сравнение текущего и ожидаемого времени"
+        )
+
+        Spacer(modifier = Modifier.height(48.dp))
+
+        // Визуальное сравнение
+        ComparisonBar(
+            label = "Без AI",
+            value = currentDuration,
+            maxValue = currentDuration.coerceAtLeast(estimatedDuration),
+            color = ErrorLight
+        )
+
+        Spacer(modifier = Modifier.height(24.dp))
+
+        ComparisonBar(
+            label = "С AI",
+            value = estimatedDuration,
+            maxValue = currentDuration.coerceAtLeast(estimatedDuration),
+            color = SuccessLight
+        )
+
+        Spacer(modifier = Modifier.height(32.dp))
+
+        Card(
+            modifier = Modifier.fillMaxWidth(),
+            colors = CardDefaults.cardColors(containerColor = SuccessLight.copy(alpha = 0.1f))
+        ) {
+            Column(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(16.dp),
+                horizontalAlignment = Alignment.CenterHorizontally
+            ) {
+                Text(
+                    text = "Вы сэкономите",
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = MaterialTheme.colorScheme.onSurface
+                )
+                Spacer(modifier = Modifier.height(8.dp))
+                Text(
+                    text = "$timeSaved часов ($percentageSaved%)",
+                    style = MaterialTheme.typography.headlineMedium,
+                    fontWeight = FontWeight.Bold,
+                    color = SuccessLight
+                )
+                Text(
+                    text = "на каждой задаче",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.7f)
+                )
+            }
+        }
+
+        Spacer(modifier = Modifier.height(48.dp))
+
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.SpaceBetween
+        ) {
+            OnboardingBackButton(onClick = onBack)
+            OnboardingNextButton(
+                text = "Далее",
+                onClick = onNext,
+                modifier = Modifier.weight(0.7f)
+            )
+        }
+    }
+}
+
+// ============================================================================
+// КАРТОЧКИ 10-12: ЭФФЕКТ ПЕРСОНАЛИЗАЦИИ
+// ============================================================================
+
+/**
+ * Карточка 10: Настройка связей AI-агентов
+ */
+@Composable
+fun OnboardingCard10_AgentConnections(
+    onNext: () -> Unit,
+    onBack: () -> Unit
+) {
+    var progress by remember { mutableStateOf(0f) }
+
+    LaunchedEffect(Unit) {
+        kotlinx.coroutines.delay(500)
+        progress = 1f
+    }
+
+    Column(
+        modifier = Modifier
+            .fillMaxSize()
+            .padding(24.dp),
+        horizontalAlignment = Alignment.CenterHorizontally,
+        verticalArrangement = Arrangement.Center
+    ) {
+        OnboardingCardTitle(
+            title = "Настраиваем связи AI-агентов",
+            subtitle = "Анализируем ваши задачи и подбираем оптимальную конфигурацию"
+        )
+
+        Spacer(modifier = Modifier.height(48.dp))
+
+        CircularProgressIndicator(
+            progress = { progress },
+            modifier = Modifier.size(120.dp),
+            color = PrimaryLight,
+            strokeWidth = 8.dp
+        )
+
+        Spacer(modifier = Modifier.height(24.dp))
+
+        Text(
+            text = "${(progress * 100).toInt()}%",
+            style = MaterialTheme.typography.headlineMedium,
+            fontWeight = FontWeight.Bold,
+            color = PrimaryLight
+        )
+
+        Spacer(modifier = Modifier.height(48.dp))
+
+        ReviewCard(
+            reviewerName = "Алексей К.",
+            reviewText = "Персонализация заняла всего пару минут, но результат превзошел ожидания!",
+            rating = 5f
+        )
+
+        Spacer(modifier = Modifier.height(32.dp))
+
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.SpaceBetween
+        ) {
+            OnboardingBackButton(onClick = onBack)
+            OnboardingNextButton(
+                text = "Далее",
+                onClick = onNext,
+                modifier = Modifier.weight(0.7f)
+            )
+        }
+    }
+}
+
+/**
+ * Карточка 11: Подготовка площадки оркестрации
+ */
+@Composable
+fun OnboardingCard11_OrchestrationPlatform(
+    onNext: () -> Unit,
+    onBack: () -> Unit
+) {
+    var progress by remember { mutableStateOf(0f) }
+
+    LaunchedEffect(Unit) {
+        kotlinx.coroutines.delay(500)
+        progress = 1f
+    }
+
+    Column(
+        modifier = Modifier
+            .fillMaxSize()
+            .padding(24.dp),
+        horizontalAlignment = Alignment.CenterHorizontally,
+        verticalArrangement = Arrangement.Center
+    ) {
+        OnboardingCardTitle(
+            title = "Готовим площадку оркестрации",
+            subtitle = "Создаем инфраструктуру для взаимодействия агентов"
+        )
+
+        Spacer(modifier = Modifier.height(48.dp))
+
+        CircularProgressIndicator(
+            progress = { progress },
+            modifier = Modifier.size(120.dp),
+            color = SecondaryLight,
+            strokeWidth = 8.dp
+        )
+
+        Spacer(modifier = Modifier.height(24.dp))
+
+        Text(
+            text = "${(progress * 100).toInt()}%",
+            style = MaterialTheme.typography.headlineMedium,
+            fontWeight = FontWeight.Bold,
+            color = SecondaryLight
+        )
+
+        Spacer(modifier = Modifier.height(48.dp))
+
+        ReviewCard(
+            reviewerName = "Мария С.",
+            reviewText = "Оркестрация работает безупречно. Агенты взаимодействуют как единый механизм.",
+            rating = 5f
+        )
+
+        Spacer(modifier = Modifier.height(32.dp))
+
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.SpaceBetween
+        ) {
+            OnboardingBackButton(onClick = onBack)
+            OnboardingNextButton(
+                text = "Далее",
+                onClick = onNext,
+                modifier = Modifier.weight(0.7f)
+            )
+        }
+    }
+}
+
+/**
+ * Карточка 12: Создание персонального дирижера
+ */
+@Composable
+fun OnboardingCard12_PersonalConductor(
+    onNext: () -> Unit,
+    onBack: () -> Unit
+) {
+    var progress by remember { mutableStateOf(0f) }
+
+    LaunchedEffect(Unit) {
+        kotlinx.coroutines.delay(500)
+        progress = 1f
+    }
+
+    Column(
+        modifier = Modifier
+            .fillMaxSize()
+            .padding(24.dp),
+        horizontalAlignment = Alignment.CenterHorizontally,
+        verticalArrangement = Arrangement.Center
+    ) {
+        OnboardingCardTitle(
+            title = "Создаем персонального дирижера",
+            subtitle = "Ваш личный AI-ассистент готов к работе"
+        )
+
+        Spacer(modifier = Modifier.height(48.dp))
+
+        CircularProgressIndicator(
+            progress = { progress },
+            modifier = Modifier.size(120.dp),
+            color = TertiaryLight,
+            strokeWidth = 8.dp
+        )
+
+        Spacer(modifier = Modifier.height(24.dp))
+
+        Text(
+            text = "${(progress * 100).toInt()}%",
+            style = MaterialTheme.typography.headlineMedium,
+            fontWeight = FontWeight.Bold,
+            color = TertiaryLight
+        )
+
+        Spacer(modifier = Modifier.height(48.dp))
+
+        ReviewCard(
+            reviewerName = "Дмитрий В.",
+            reviewText = "Персональный дирижер понимает мои задачи с полуслова. Невероятно удобно!",
+            rating = 5f
+        )
+
+        Spacer(modifier = Modifier.height(32.dp))
+
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.SpaceBetween
+        ) {
+            OnboardingBackButton(onClick = onBack)
+            OnboardingNextButton(
+                text = "Далее",
+                onClick = onNext,
+                modifier = Modifier.weight(0.7f)
+            )
+        }
+    }
+}
+
+// ============================================================================
+// КАРТОЧКИ 13-15: ВОПРОС AI-АГЕНТУ
+// ============================================================================
+
+/**
+ * Карточка 13: Задать вопрос AI-агенту
+ */
+@Composable
+fun OnboardingCard13_AskAiQuestion(
+    aiResponse: String?,
+    isLoading: Boolean,
+    onAskQuestion: (String) -> Unit,
+    onNext: () -> Unit,
+    onBack: () -> Unit
+) {
+    var question by remember { mutableStateOf("") }
+
+    Column(
+        modifier = Modifier
+            .fillMaxSize()
+            .padding(24.dp)
+            .verticalScroll(rememberScrollState()),
+        horizontalAlignment = Alignment.CenterHorizontally
+    ) {
+        Spacer(modifier = Modifier.height(32.dp))
+
+        OnboardingCardTitle(
+            title = "Задайте вопрос AI-агенту",
+            subtitle = "Попробуйте прямо сейчас без регистрации"
+        )
+
+        Spacer(modifier = Modifier.height(32.dp))
+
+        OutlinedTextField(
+            value = question,
+            onValueChange = { question = it },
+            label = { Text("Ваш вопрос") },
+            placeholder = { Text("Например: Как автоматизировать обработку заказов?") },
+            modifier = Modifier
+                .fillMaxWidth()
+                .height(120.dp),
+            maxLines = 5
+        )
+
+        Spacer(modifier = Modifier.height(16.dp))
+
+        Button(
+            onClick = { onAskQuestion(question) },
+            enabled = question.isNotBlank() && !isLoading,
+            modifier = Modifier.fillMaxWidth(),
+            colors = ButtonDefaults.buttonColors(
+                containerColor = PrimaryLight
+            )
+        ) {
+            if (isLoading) {
+                CircularProgressIndicator(
+                    modifier = Modifier.size(20.dp),
+                    color = MaterialTheme.colorScheme.onPrimary,
+                    strokeWidth = 2.dp
+                )
+            } else {
+                Text("Задать вопрос")
+            }
+        }
+
+        if (aiResponse != null) {
+            Spacer(modifier = Modifier.height(24.dp))
+
+            Card(
+                modifier = Modifier.fillMaxWidth(),
+                colors = CardDefaults.cardColors(
+                    containerColor = PrimaryLight.copy(alpha = 0.1f)
+                )
+            ) {
+                Column(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(16.dp)
+                ) {
+                    Text(
+                        text = "Ответ AI-агента:",
+                        style = MaterialTheme.typography.labelLarge,
+                        fontWeight = FontWeight.SemiBold,
+                        color = PrimaryLight
+                    )
+                    Spacer(modifier = Modifier.height(8.dp))
+                    Text(
+                        text = aiResponse,
+                        style = MaterialTheme.typography.bodyMedium,
+                        color = MaterialTheme.colorScheme.onSurface
+                    )
+                }
+            }
+        }
+
+        Spacer(modifier = Modifier.height(32.dp))
+
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.SpaceBetween
+        ) {
+            OnboardingBackButton(onClick = onBack)
+            OnboardingNextButton(
+                text = "Далее",
+                onClick = onNext,
+                modifier = Modifier.weight(0.7f)
+            )
+        }
+    }
+}
+
+/**
+ * Карточка 14: Ответ AI-агента (детальный просмотр)
+ */
+@Composable
+fun OnboardingCard14_AiResponse(
+    aiResponse: String?,
+    isLoading: Boolean,
+    onNext: () -> Unit,
+    onBack: () -> Unit
+) {
+    Column(
+        modifier = Modifier
+            .fillMaxSize()
+            .padding(24.dp)
+            .verticalScroll(rememberScrollState()),
+        horizontalAlignment = Alignment.CenterHorizontally
+    ) {
+        Spacer(modifier = Modifier.height(32.dp))
+
+        OnboardingCardTitle(
+            title = "Возможности AI-агента",
+            subtitle = "Базовый агент готов помочь вам"
+        )
+
+        Spacer(modifier = Modifier.height(32.dp))
+
+        if (isLoading) {
+            CircularProgressIndicator(
+                modifier = Modifier.size(60.dp),
+                color = PrimaryLight
+            )
+        } else if (aiResponse != null) {
+            Card(
+                modifier = Modifier.fillMaxWidth(),
+                colors = CardDefaults.cardColors(
+                    containerColor = CardBackground
+                )
+            ) {
+                Column(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(16.dp)
+                ) {
+                    Text(
+                        text = aiResponse,
+                        style = MaterialTheme.typography.bodyLarge,
+                        color = MaterialTheme.colorScheme.onSurface,
+                        lineHeight = 24.sp
+                    )
+                }
+            }
+        }
+
+        Spacer(modifier = Modifier.height(32.dp))
+
+        Text(
+            text = "💡 С платной версией вы получите доступ к специализированным агентам с расширенными навыками",
+            style = MaterialTheme.typography.bodySmall,
+            color = MaterialTheme.colorScheme.onBackground.copy(alpha = 0.6f),
+            textAlign = TextAlign.Center
+        )
+
+        Spacer(modifier = Modifier.height(48.dp))
+
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.SpaceBetween
+        ) {
+            OnboardingBackButton(onClick = onBack)
+            OnboardingNextButton(
+                text = "Далее",
+                onClick = onNext,
+                modifier = Modifier.weight(0.7f)
+            )
+        }
+    }
+}
+
+/**
+ * Карточка 15: Возможности AI-агентов
+ */
+@Composable
+fun OnboardingCard15_AiCapabilities(
+    onNext: () -> Unit,
+    onBack: () -> Unit
+) {
+    Column(
+        modifier = Modifier
+            .fillMaxSize()
+            .padding(24.dp)
+            .verticalScroll(rememberScrollState()),
+        horizontalAlignment = Alignment.CenterHorizontally
+    ) {
+        Spacer(modifier = Modifier.height(32.dp))
+
+        OnboardingCardTitle(
+            title = "Что умеют AI-агенты?",
+            subtitle = "Широкий спектр возможностей для вашего бизнеса"
+        )
+
+        Spacer(modifier = Modifier.height(32.dp))
+
+        CapabilityItem(
+            icon = "📊",
+            title = "Анализ данных",
+            description = "Обработка больших объемов информации и выявление закономерностей"
+        )
+
+        Spacer(modifier = Modifier.height(16.dp))
+
+        CapabilityItem(
+            icon = "✍️",
+            title = "Генерация контента",
+            description = "Создание текстов, отчетов, презентаций"
+        )
+
+        Spacer(modifier = Modifier.height(16.dp))
+
+        CapabilityItem(
+            icon = "🔄",
+            title = "Автоматизация процессов",
+            description = "Выполнение рутинных задач без участия человека"
+        )
+
+        Spacer(modifier = Modifier.height(16.dp))
+
+        CapabilityItem(
+            icon = "🔍",
+            title = "Поиск и исследование",
+            description = "Быстрый поиск информации и анализ источников"
+        )
+
+        Spacer(modifier = Modifier.height(48.dp))
+
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.SpaceBetween
+        ) {
+            OnboardingBackButton(onClick = onBack)
+            OnboardingNextButton(
+                text = "Далее",
+                onClick = onNext,
+                modifier = Modifier.weight(0.7f)
+            )
+        }
+    }
+}
+
+// ============================================================================
+// КАРТОЧКИ 16-18: ЧАСТОТА ИСПОЛЬЗОВАНИЯ
+// ============================================================================
+
+/**
+ * Карточка 16: Частота использования
+ */
+@Composable
+fun OnboardingCard16_UsageFrequency(
+    frequency: String,
+    onFrequencySelected: (String) -> Unit,
+    onNext: () -> Unit,
+    onBack: () -> Unit
+) {
+    var selectedFrequency by remember { mutableStateOf(frequency) }
+
+    Column(
+        modifier = Modifier
+            .fillMaxSize()
+            .padding(24.dp),
+        horizontalAlignment = Alignment.CenterHorizontally,
+        verticalArrangement = Arrangement.Center
+    ) {
+        OnboardingCardTitle(
+            title = "Как часто вы планируете использовать AI-агентов?",
+            subtitle = "Это поможет нам оптимизировать производительность"
+        )
+
+        Spacer(modifier = Modifier.height(32.dp))
+
+        val frequencies = listOf(
+            "Несколько раз в день",
+            "Ежедневно",
+            "Несколько раз в неделю",
+            "Еженедельно",
+            "Несколько раз в месяц",
+            "По мере необходимости"
+        )
+
+        frequencies.forEach { freq ->
+            PurposeOption(
+                text = freq,
+                selected = selectedFrequency == freq,
+                onClick = { selectedFrequency = freq }
+            )
+            Spacer(modifier = Modifier.height(12.dp))
+        }
+
+        Spacer(modifier = Modifier.height(32.dp))
+
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.SpaceBetween
+        ) {
+            OnboardingBackButton(onClick = onBack)
+            OnboardingNextButton(
+                text = "Далее",
+                enabled = selectedFrequency.isNotBlank(),
+                onClick = {
+                    onFrequencySelected(selectedFrequency)
+                    onNext()
+                },
+                modifier = Modifier.weight(0.7f)
+            )
+        }
+    }
+}
+
+/**
+ * Карточка 17: Время суток использования
+ */
+@Composable
+fun OnboardingCard17_UsageTimeOfDay(
+    timeOfDay: String,
+    onTimeSelected: (String) -> Unit,
+    onNext: () -> Unit,
+    onBack: () -> Unit
+) {
+    var selectedTime by remember { mutableStateOf(timeOfDay) }
+
+    Column(
+        modifier = Modifier
+            .fillMaxSize()
+            .padding(24.dp),
+        horizontalAlignment = Alignment.CenterHorizontally,
+        verticalArrangement = Arrangement.Center
+    ) {
+        OnboardingCardTitle(
+            title = "В какое время суток вы будете работать с AI?",
+            subtitle = "Для оптимального распределения ресурсов"
+        )
+
+        Spacer(modifier = Modifier.height(32.dp))
+
+        val times = listOf(
+            "Утро (6:00 - 12:00)",
+            "День (12:00 - 18:00)",
+            "Вечер (18:00 - 24:00)",
+            "Ночь (0:00 - 6:00)",
+            "Круглосуточно"
+        )
+
+        times.forEach { time ->
+            PurposeOption(
+                text = time,
+                selected = selectedTime == time,
+                onClick = { selectedTime = time }
+            )
+            Spacer(modifier = Modifier.height(12.dp))
+        }
+
+        Spacer(modifier = Modifier.height(32.dp))
+
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.SpaceBetween
+        ) {
+            OnboardingBackButton(onClick = onBack)
+            OnboardingNextButton(
+                text = "Далее",
+                enabled = selectedTime.isNotBlank(),
+                onClick = {
+                    onTimeSelected(selectedTime)
+                    onNext()
+                },
+                modifier = Modifier.weight(0.7f)
+            )
+        }
+    }
+}
+
+/**
+ * Карточка 18: Анализ нагрузки
+ */
+@Composable
+fun OnboardingCard18_LoadAnalysis(
+    frequency: String,
+    timeOfDay: String,
+    onNext: () -> Unit,
+    onBack: () -> Unit
+) {
+    var progress by remember { mutableStateOf(0f) }
+
+    LaunchedEffect(Unit) {
+        kotlinx.coroutines.delay(500)
+        progress = 1f
+    }
+
+    Column(
+        modifier = Modifier
+            .fillMaxSize()
+            .padding(24.dp),
+        horizontalAlignment = Alignment.CenterHorizontally,
+        verticalArrangement = Arrangement.Center
+    ) {
+        OnboardingCardTitle(
+            title = "Анализируем нагрузку",
+            subtitle = "Оптимизируем систему под ваш график"
+        )
+
+        Spacer(modifier = Modifier.height(48.dp))
+
+        CircularProgressIndicator(
+            progress = { progress },
+            modifier = Modifier.size(120.dp),
+            color = PrimaryLight,
+            strokeWidth = 8.dp
+        )
+
+        Spacer(modifier = Modifier.height(24.dp))
+
+        Text(
+            text = "${(progress * 100).toInt()}%",
+            style = MaterialTheme.typography.headlineMedium,
+            fontWeight = FontWeight.Bold,
+            color = PrimaryLight
+        )
+
+        Spacer(modifier = Modifier.height(32.dp))
+
+        Card(
+            modifier = Modifier.fillMaxWidth(),
+            colors = CardDefaults.cardColors(
+                containerColor = PrimaryLight.copy(alpha = 0.1f)
+            )
+        ) {
+            Column(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(16.dp)
+            ) {
+                Text(
+                    text = "Ваш профиль использования:",
+                    style = MaterialTheme.typography.labelLarge,
+                    fontWeight = FontWeight.SemiBold
+                )
+                Spacer(modifier = Modifier.height(8.dp))
+                Text(
+                    text = "• Частота: $frequency",
+                    style = MaterialTheme.typography.bodyMedium
+                )
+                Text(
+                    text = "• Время: $timeOfDay",
+                    style = MaterialTheme.typography.bodyMedium
+                )
+            }
+        }
+
+        Spacer(modifier = Modifier.height(48.dp))
+
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.SpaceBetween
+        ) {
+            OnboardingBackButton(onClick = onBack)
+            OnboardingNextButton(
+                text = "Далее",
+                onClick = onNext,
+                modifier = Modifier.weight(0.7f)
+            )
+        }
+    }
+}
+
+// ============================================================================
+// КАРТОЧКА 19: РЕЗЮМЕ ПРОГРЕССА
+// ============================================================================
+
+/**
+ * Карточка 19: Резюме прогресса
+ */
+@Composable
+fun OnboardingCard19_ProgressSummary(
+    onboardingData: OnboardingData,
+    onNext: () -> Unit,
+    onBack: () -> Unit
+) {
+    val timeSaved = onboardingData.currentTaskDurationHours - onboardingData.estimatedAiDurationHours
+
+    Column(
+        modifier = Modifier
+            .fillMaxSize()
+            .padding(24.dp)
+            .verticalScroll(rememberScrollState()),
+        horizontalAlignment = Alignment.CenterHorizontally
+    ) {
+        Spacer(modifier = Modifier.height(32.dp))
+
+        OnboardingCardTitle(
+            title = "Ваш персональный план",
+            subtitle = "Прогресс при использовании AI-агентов"
+        )
+
+        Spacer(modifier = Modifier.height(32.dp))
+
+        SummaryCard(
+            icon = "🎯",
+            title = "Ваша цель",
+            value = onboardingData.aiPurpose
+        )
+
+        Spacer(modifier = Modifier.height(16.dp))
+
+        SummaryCard(
+            icon = "🏢",
+            title = "Сфера деятельности",
+            value = onboardingData.industry
+        )
+
+        Spacer(modifier = Modifier.height(16.dp))
+
+        SummaryCard(
+            icon = "⏱️",
+            title = "Экономия времени",
+            value = "$timeSaved часов на задачу"
+        )
+
+        Spacer(modifier = Modifier.height(16.dp))
+
+        SummaryCard(
+            icon = "🛠️",
+            title = "Необходимые навыки",
+            value = "${onboardingData.requiredSkills.size} навыков выбрано"
+        )
+
+        Spacer(modifier = Modifier.height(32.dp))
+
+        Card(
+            modifier = Modifier.fillMaxWidth(),
+            colors = CardDefaults.cardColors(
+                containerColor = SuccessLight.copy(alpha = 0.1f)
+            )
+        ) {
+            Column(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(16.dp),
+                horizontalAlignment = Alignment.CenterHorizontally
+            ) {
+                Text(
+                    text = "Ожидаемый результат через 30 дней:",
+                    style = MaterialTheme.typography.labelLarge,
+                    fontWeight = FontWeight.SemiBold,
+                    color = SuccessLight
+                )
+                Spacer(modifier = Modifier.height(8.dp))
+                Text(
+                    text = "Автоматизация 80% рутинных задач",
+                    style = MaterialTheme.typography.bodyLarge,
+                    fontWeight = FontWeight.Bold,
+                    color = MaterialTheme.colorScheme.onSurface
+                )
+            }
+        }
+
+        Spacer(modifier = Modifier.height(48.dp))
+
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.SpaceBetween
+        ) {
+            OnboardingBackButton(onClick = onBack)
+            OnboardingNextButton(
+                text = "Выбрать план",
+                onClick = onNext,
+                modifier = Modifier.weight(0.7f)
+            )
+        }
+    }
+}
+
+// ============================================================================
+// КАРТОЧКА 20: ВЫБОР ПЛАНА
+// ============================================================================
+
+/**
+ * Карточка 20: Выбор плана (демо, месячная, годовая подписка)
+ */
+@Composable
+fun OnboardingCard20_PlanSelection(
+    selectedPlan: String,
+    onPlanSelected: (String) -> Unit,
+    onComplete: () -> Unit,
+    onBack: () -> Unit
+) {
+    var currentPlan by remember { mutableStateOf(selectedPlan) }
+
+    Column(
+        modifier = Modifier
+            .fillMaxSize()
+            .padding(24.dp)
+            .verticalScroll(rememberScrollState()),
+        horizontalAlignment = Alignment.CenterHorizontally
+    ) {
+        Spacer(modifier = Modifier.height(32.dp))
+
+        OnboardingCardTitle(
+            title = "Выберите подходящий план",
+            subtitle = "Начните бесплатно или получите полный доступ"
+        )
+
+        Spacer(modifier = Modifier.height(32.dp))
+
+        // Демо-версия
+        PlanCard(
+            title = "Демо-версия",
+            price = "Бесплатно",
+            period = "3 дня",
+            features = listOf(
+                "Доступ к базовому AI-агенту",
+                "Без доступа к специализированным навыкам",
+                "Ограничения на количество запросов"
+            ),
+            selected = currentPlan == "demo",
+            onSelect = { currentPlan = "demo" },
+            badge = "ПОПРОБОВАТЬ"
+        )
+
+        Spacer(modifier = Modifier.height(16.dp))
+
+        // Месячная подписка
+        PlanCard(
+            title = "Месячная подписка",
+            price = "$9.99",
+            period = "в месяц",
+            features = listOf(
+                "Полный доступ ко всем агентам",
+                "Все навыки и интеграции",
+                "Приоритетная поддержка",
+                "Неограниченные запросы"
+            ),
+            selected = currentPlan == "monthly",
+            onSelect = { currentPlan = "monthly" }
+        )
+
+        Spacer(modifier = Modifier.height(16.dp))
+
+        // Годовая подписка
+        PlanCard(
+            title = "Годовая подписка",
+            price = "$110",
+            period = "в год",
+            features = listOf(
+                "Всё из месячной подписки",
+                "Экономия 8%",
+                "Приоритетный доступ к новым функциям",
+                "Персональный менеджер"
+            ),
+            selected = currentPlan == "yearly",
+            onSelect = { currentPlan = "yearly" },
+            badge = "ВЫГОДНО"
+        )
+
+        Spacer(modifier = Modifier.height(32.dp))
+
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.SpaceBetween
+        ) {
+            OnboardingBackButton(onClick = onBack)
+            OnboardingNextButton(
+                text = "Продолжить",
+                enabled = currentPlan.isNotBlank(),
+                onClick = {
+                    onPlanSelected(currentPlan)
+                    onComplete()
+                },
+                modifier = Modifier.weight(0.7f)
+            )
+        }
+    }
+}
+
+// ============================================================================
+// ВСПОМОГАТЕЛЬНЫЕ КОМПОНЕНТЫ
+// ============================================================================
+
+@Composable
+private fun FeatureItem(
+    icon: String,
+    title: String,
+    description: String
+) {
+    Row(
+        modifier = Modifier.fillMaxWidth(),
+        verticalAlignment = Alignment.Top
+    ) {
+        Text(
+            text = icon,
+            style = MaterialTheme.typography.headlineMedium
+        )
+        Spacer(modifier = Modifier.width(16.dp))
+        Column {
+            Text(
+                text = title,
+                style = MaterialTheme.typography.titleMedium,
+                fontWeight = FontWeight.SemiBold
+            )
+            Spacer(modifier = Modifier.height(4.dp))
+            Text(
+                text = description,
+                style = MaterialTheme.typography.bodyMedium,
+                color = MaterialTheme.colorScheme.onBackground.copy(alpha = 0.7f)
+            )
+        }
+    }
+}
+
+@Composable
+private fun ValueItem(
+    value: String,
+    label: String
+) {
+    Column(
+        horizontalAlignment = Alignment.CenterHorizontally
+    ) {
+        Text(
+            text = value,
+            style = MaterialTheme.typography.displayLarge,
+            fontWeight = FontWeight.Bold,
+            color = PrimaryLight
+        )
+        Spacer(modifier = Modifier.height(8.dp))
+        Text(
+            text = label,
+            style = MaterialTheme.typography.bodyLarge,
+            color = MaterialTheme.colorScheme.onBackground.copy(alpha = 0.7f)
+        )
+    }
+}
+
+@Composable
+private fun PurposeOption(
+    text: String,
+    selected: Boolean,
+    onClick: () -> Unit
+) {
+    Card(
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(vertical = 4.dp),
+        shape = RoundedCornerShape(12.dp),
+        colors = CardDefaults.cardColors(
+            containerColor = if (selected) PrimaryLight.copy(alpha = 0.1f) else CardBackground
+        ),
+        border = if (selected) {
+            CardDefaults.outlinedCardBorder().copy(width = 2.dp, color = PrimaryLight)
+        } else {
+            null
+        }
+    ) {
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(16.dp),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            RadioButton(
+                selected = selected,
+                onClick = onClick,
+                colors = RadioButtonDefaults.colors(
+                    selectedColor = PrimaryLight
+                )
+            )
+            Spacer(modifier = Modifier.width(12.dp))
+            Text(
+                text = text,
+                style = MaterialTheme.typography.bodyLarge,
+                color = MaterialTheme.colorScheme.onSurface
+            )
+        }
+    }
+}
+
+@Composable
+private fun SkillCheckbox(
+    text: String,
+    checked: Boolean,
+    onCheckedChange: (Boolean) -> Unit
+) {
+    Card(
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(vertical = 4.dp),
+        shape = RoundedCornerShape(12.dp),
+        colors = CardDefaults.cardColors(
+            containerColor = if (checked) SecondaryLight.copy(alpha = 0.1f) else CardBackground
+        ),
+        border = if (checked) {
+            CardDefaults.outlinedCardBorder().copy(width = 2.dp, color = SecondaryLight)
+        } else {
+            null
+        }
+    ) {
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(16.dp),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Checkbox(
+                checked = checked,
+                onCheckedChange = onCheckedChange,
+                colors = CheckboxDefaults.colors(
+                    checkedColor = SecondaryLight
+                )
+            )
+            Spacer(modifier = Modifier.width(12.dp))
+            Text(
+                text = text,
+                style = MaterialTheme.typography.bodyLarge,
+                color = MaterialTheme.colorScheme.onSurface
+            )
+        }
+    }
+}
+
+@Composable
+private fun ComparisonBar(
+    label: String,
+    value: Int,
+    maxValue: Int,
+    color: Color
+) {
+    Column(
+        modifier = Modifier.fillMaxWidth()
+    ) {
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.SpaceBetween
+        ) {
+            Text(
+                text = label,
+                style = MaterialTheme.typography.labelLarge,
+                fontWeight = FontWeight.SemiBold
+            )
+            Text(
+                text = "$value часов",
+                style = MaterialTheme.typography.labelLarge,
+                color = color
+            )
+        }
+        Spacer(modifier = Modifier.height(8.dp))
+        LinearProgressIndicator(
+            progress = { if (maxValue > 0) value.toFloat() / maxValue else 0f },
+            modifier = Modifier
+                .fillMaxWidth()
+                .height(12.dp),
+            color = color,
+            trackColor = DividerLight
+        )
+    }
+}
+
+@Composable
+private fun CapabilityItem(
+    icon: String,
+    title: String,
+    description: String
+) {
+    Card(
+        modifier = Modifier.fillMaxWidth(),
+        colors = CardDefaults.cardColors(containerColor = CardBackground)
+    ) {
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(16.dp),
+            verticalAlignment = Alignment.Top
+        ) {
+            Text(
+                text = icon,
+                style = MaterialTheme.typography.headlineMedium
+            )
+            Spacer(modifier = Modifier.width(16.dp))
+            Column {
+                Text(
+                    text = title,
+                    style = MaterialTheme.typography.titleMedium,
+                    fontWeight = FontWeight.SemiBold
+                )
+                Spacer(modifier = Modifier.height(4.dp))
+                Text(
+                    text = description,
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.7f)
+                )
+            }
+        }
+    }
+}
+
+@Composable
+private fun SummaryCard(
+    icon: String,
+    title: String,
+    value: String
+) {
+    Card(
+        modifier = Modifier.fillMaxWidth(),
+        colors = CardDefaults.cardColors(containerColor = CardBackground)
+    ) {
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(16.dp),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Text(
+                text = icon,
+                style = MaterialTheme.typography.headlineMedium
+            )
+            Spacer(modifier = Modifier.width(16.dp))
+            Column {
+                Text(
+                    text = title,
+                    style = MaterialTheme.typography.labelMedium,
+                    color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.6f)
+                )
+                Spacer(modifier = Modifier.height(4.dp))
+                Text(
+                    text = value,
+                    style = MaterialTheme.typography.bodyLarge,
+                    fontWeight = FontWeight.SemiBold
+                )
+            }
+        }
+    }
+}
+
+@Composable
+private fun PlanCard(
+    title: String,
+    price: String,
+    period: String,
+    features: List<String>,
+    selected: Boolean,
+    onSelect: () -> Unit,
+    badge: String? = null
+) {
+    Card(
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(vertical = 4.dp),
+        shape = RoundedCornerShape(16.dp),
+        colors = CardDefaults.cardColors(
+            containerColor = if (selected) PrimaryLight.copy(alpha = 0.05f) else CardBackground
+        ),
+        border = if (selected) {
+            CardDefaults.outlinedCardBorder().copy(width = 2.dp, color = PrimaryLight)
+        } else {
+            null
+        },
+        elevation = CardDefaults.cardElevation(defaultElevation = if (selected) 4.dp else 1.dp)
+    ) {
+        Column(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(20.dp)
+        ) {
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.Top
+            ) {
+                Column {
+                    Text(
+                        text = title,
+                        style = MaterialTheme.typography.titleLarge,
+                        fontWeight = FontWeight.Bold
+                    )
+                    Spacer(modifier = Modifier.height(8.dp))
+                    Row(
+                        verticalAlignment = Alignment.Bottom
+                    ) {
+                        Text(
+                            text = price,
+                            style = MaterialTheme.typography.headlineMedium,
+                            fontWeight = FontWeight.Bold,
+                            color = PrimaryLight
+                        )
+                        if (period != "Бесплатно") {
+                            Spacer(modifier = Modifier.width(4.dp))
+                            Text(
+                                text = period,
+                                style = MaterialTheme.typography.bodyMedium,
+                                color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.6f),
+                                modifier = Modifier.padding(bottom = 4.dp)
+                            )
+                        }
+                    }
+                }
+
+                badge?.let {
+                    Surface(
+                        shape = RoundedCornerShape(8.dp),
+                        color = if (it == "ВЫГОДНО") SuccessLight else TertiaryLight
+                    ) {
+                        Text(
+                            text = it,
+                            style = MaterialTheme.typography.labelSmall,
+                            fontWeight = FontWeight.Bold,
+                            color = Color.White,
+                            modifier = Modifier.padding(horizontal = 12.dp, vertical = 6.dp)
+                        )
+                    }
+                }
+            }
+
+            Spacer(modifier = Modifier.height(16.dp))
+
+            features.forEach { feature ->
+                Row(
+                    modifier = Modifier.padding(vertical = 4.dp),
+                    verticalAlignment = Alignment.Top
+                ) {
+                    Text(
+                        text = "✓",
+                        color = SuccessLight,
+                        fontWeight = FontWeight.Bold,
+                        modifier = Modifier.padding(end = 8.dp)
+                    )
+                    Text(
+                        text = feature,
+                        style = MaterialTheme.typography.bodyMedium,
+                        color = MaterialTheme.colorScheme.onSurface
+                    )
+                }
+            }
+
+            Spacer(modifier = Modifier.height(16.dp))
+
+            Button(
+                onClick = onSelect,
+                modifier = Modifier.fillMaxWidth(),
+                colors = ButtonDefaults.buttonColors(
+                    containerColor = if (selected) PrimaryLight else DividerLight,
+                    contentColor = if (selected) Color.White else MaterialTheme.colorScheme.onSurface
+                )
+            ) {
+                Text(if (selected) "Выбрано" else "Выбрать")
+            }
+        }
+    }
+}

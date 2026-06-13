@@ -158,6 +158,28 @@ struct Task {
     std::chrono::system_clock::time_point created_at;
 };
 
+// Структура для хранения данных онбординга
+struct OnboardingData {
+    std::string ai_purpose;
+    std::string industry;
+    std::vector<std::string> required_skills;
+    int current_task_duration_hours = 0;
+    int estimated_ai_duration_hours = 0;
+    std::string usage_frequency;
+    std::string usage_time_of_day;
+    long long completed_at = 0;
+    bool demo_selected = false;
+    std::string plan_selected;
+};
+
+// Структура для статуса онбординга
+struct OnboardingStatus {
+    bool onboarding_completed = false;
+    bool demo_active = false;
+    long long demo_expires_at = 0;
+    bool subscription_active = false;
+};
+
 // =============================================================================
 // ХРАНИЛИЩЕ АГЕНТОВ И ЗАДАЧ (in-memory + JSON-файлы)
 // =============================================================================
@@ -678,6 +700,15 @@ public:
 // ПОТОКОБЕЗОПАСНОЕ ХРАНИЛИЩЕ ПОЛЬЗОВАТЕЛЕЙ (БЕЗ КЭШИРОВАНИЯ В RAM)
 // =============================================================================
 class UserStore {
+
+private:
+    std::string db_path;
+    std::mutex mtx;
+
+    // Добавить поля для онбординга
+    std::map<std::string, OnboardingData> onboarding_data;
+    std::map<std::string, OnboardingStatus> onboarding_status;
+
     mutable std::mutex persist_mtx_;
     const std::string file_path_;
 
@@ -920,6 +951,157 @@ public:
         j.erase(email);
         return write_users_json(j);
     }
+    // Сохранение данных онбординга
+    bool saveOnboardingData(const std::string& email, const OnboardingData& data) {
+        std::lock_guard<std::mutex> lock(mtx);
+        try {
+            onboarding_data[email] = data;
+
+            // Обновляем статус онбординга
+            onboarding_status[email].onboarding_completed = true;
+            onboarding_status[email].demo_active = data.demo_selected;
+
+            if (data.demo_selected) {
+                // Демо-версия на 3 дня
+                auto now = std::chrono::system_clock::now();
+                auto demo_expires = now + std::chrono::hours(72); // 3 дня
+                onboarding_status[email].demo_expires_at =
+                    std::chrono::duration_cast<std::chrono::seconds>(
+                        demo_expires.time_since_epoch()
+                    ).count();
+            }
+
+            // Сохраняем в файл
+            saveToDisk();
+            return true;
+        }
+        catch (const std::exception& e) {
+            std::cerr << "[ERROR] Failed to save onboarding data: " << e.what() << std::endl;
+            return false;
+        }
+    }
+
+    // Получение статуса онбординга
+    OnboardingStatus getOnboardingStatus(const std::string& email) {
+        std::lock_guard<std::mutex> lock(mtx);
+        if (onboarding_status.find(email) != onboarding_status.end()) {
+            auto status = onboarding_status[email];
+
+            // Проверяем, не истекла ли демо-версия
+            if (status.demo_active) {
+                auto now = std::chrono::system_clock::now();
+                auto now_ts = std::chrono::duration_cast<std::chrono::seconds>(
+                    now.time_since_epoch()
+                ).count();
+
+                if (now_ts > status.demo_expires_at) {
+                    status.demo_active = false;
+                }
+            }
+
+            return status;
+        }
+        return OnboardingStatus{};
+    }
+
+    // Активация демо-версии
+    bool activateDemo(const std::string& email) {
+        std::lock_guard<std::mutex> lock(mtx);
+        try {
+            onboarding_status[email].demo_active = true;
+
+            auto now = std::chrono::system_clock::now();
+            auto demo_expires = now + std::chrono::hours(72); // 3 дня
+            onboarding_status[email].demo_expires_at =
+                std::chrono::duration_cast<std::chrono::seconds>(
+                    demo_expires.time_since_epoch()
+                ).count();
+
+            saveToDisk();
+            return true;
+        }
+        catch (const std::exception& e) {
+            std::cerr << "[ERROR] Failed to activate demo: " << e.what() << std::endl;
+            return false;
+        }
+    }
+
+private:
+    void saveToDisk() {
+        // Сохранение в JSON файл
+        nlohmann::json j;
+
+        // Сохраняем данные онбординга
+        nlohmann::json onboarding_j;
+        for (const auto& [email, data] : onboarding_data) {
+            onboarding_j[email] = {
+                {"ai_purpose", data.ai_purpose},
+                {"industry", data.industry},
+                {"required_skills", data.required_skills},
+                {"current_task_duration_hours", data.current_task_duration_hours},
+                {"estimated_ai_duration_hours", data.estimated_ai_duration_hours},
+                {"usage_frequency", data.usage_frequency},
+                {"usage_time_of_day", data.usage_time_of_day},
+                {"completed_at", data.completed_at},
+                {"demo_selected", data.demo_selected},
+                {"plan_selected", data.plan_selected}
+            };
+        }
+        j["onboarding_data"] = onboarding_j;
+
+        // Сохраняем статусы онбординга
+        nlohmann::json status_j;
+        for (const auto& [email, status] : onboarding_status) {
+            status_j[email] = {
+                {"onboarding_completed", status.onboarding_completed},
+                {"demo_active", status.demo_active},
+                {"demo_expires_at", status.demo_expires_at},
+                {"subscription_active", status.subscription_active}
+            };
+        }
+        j["onboarding_status"] = status_j;
+
+        std::ofstream file("onboarding.json");
+        file << j.dump(4);
+    }
+
+    void loadFromDisk() {
+        // Загрузка из JSON файла
+        std::ifstream file("onboarding.json");
+        if (file.is_open()) {
+            nlohmann::json j;
+            file >> j;
+
+            if (j.contains("onboarding_data")) {
+                for (auto& [email, data] : j["onboarding_data"].items()) {
+                    OnboardingData od;
+                    od.ai_purpose = data.value("ai_purpose", "");
+                    od.industry = data.value("industry", "");
+                    od.required_skills = data.value("required_skills", std::vector<std::string>{});
+                    od.current_task_duration_hours = data.value("current_task_duration_hours", 0);
+                    od.estimated_ai_duration_hours = data.value("estimated_ai_duration_hours", 0);
+                    od.usage_frequency = data.value("usage_frequency", "");
+                    od.usage_time_of_day = data.value("usage_time_of_day", "");
+                    od.completed_at = data.value("completed_at", 0LL);
+                    od.demo_selected = data.value("demo_selected", false);
+                    od.plan_selected = data.value("plan_selected", "");
+                    onboarding_data[email] = od;
+                }
+            }
+
+            if (j.contains("onboarding_status")) {
+                for (auto& [email, status] : j["onboarding_status"].items()) {
+                    OnboardingStatus os;
+                    os.onboarding_completed = status.value("onboarding_completed", false);
+                    os.demo_active = status.value("demo_active", false);
+                    os.demo_expires_at = status.value("demo_expires_at", 0LL);
+                    os.subscription_active = status.value("subscription_active", false);
+                    onboarding_status[email] = os;
+                }
+            }
+        }
+    }
+
 };
 
 // =============================================================================
@@ -1119,7 +1301,140 @@ int main()
             std::cout << "[" << std::put_time(&tm_buf, "%Y-%m-%d %H:%M:%S")
                 << "] " << req.method << " " << req.path
                 << " -> " << res.status << std::endl;
+        });
+
+        // POST /onboarding/save - Сохранение данных онбординга
+        svr.Post("/onboarding/save", [&](const httplib::Request& req, httplib::Response& res) {
+            try {
+                // Проверка авторизации
+                auto token_opt = extract_bearer(req);
+                if (!token_opt) return json_error(res, 401, "Missing token");
+
+                auto email_opt = JWT::verify(*token_opt);
+                if (!email_opt) return json_error(res, 401, "Invalid token");
+
+                std::string email = *email_opt;
+
+                // Парсинг JSON
+                auto body = json::parse(req.body, nullptr, false);
+                if (body.is_discarded()) {
+                    return json_error(res, 400, "Invalid JSON body");
+                }
+
+                OnboardingData data;
+                data.ai_purpose = body.value("ai_purpose", "");
+                data.industry = body.value("industry", "");
+                if (body.contains("required_skills") && body["required_skills"].is_array()) {
+                    data.required_skills = body["required_skills"].get<std::vector<std::string>>();
+                }
+                data.current_task_duration_hours = body.value("current_task_duration_hours", 0);
+                data.estimated_ai_duration_hours = body.value("estimated_ai_duration_hours", 0);
+                data.usage_frequency = body.value("usage_frequency", "");
+                data.usage_time_of_day = body.value("usage_time_of_day", "");
+                
+                // Время завершения онбординга в миллисекундах
+                data.completed_at = std::chrono::duration_cast<std::chrono::milliseconds>(
+                    std::chrono::system_clock::now().time_since_epoch()
+                ).count();
+                data.demo_selected = body.value("demo_selected", false);
+                data.plan_selected = body.value("plan_selected", "");
+                
+                // Сохраняем данные в хранилище
+                if (store.saveOnboardingData(email, data)) {
+                    nlohmann::json response;
+                    response["success"] = true;
+                    response["message"] = "Onboarding data saved successfully";
+
+                    // Если выбрана демо-версия, возвращаем время истечения
+                    if (data.demo_selected) {
+                        auto status = store.getOnboardingStatus(email);
+                        response["demo_expires_at"] = status.demo_expires_at;
+                    }
+
+                    res.set_content(response.dump(), "application/json");
+                }
+                else {
+                    res.status = 500;
+                    res.set_content(R"({"error": "Failed to save onboarding data"})", "application/json");
+                }
+
+            }
+            catch (const std::exception& e) {
+                std::cerr << "[ERROR] /onboarding/save: " << e.what() << std::endl;
+                res.status = 500;
+                res.set_content(R"({"error": "Internal server error"})", "application/json");
+            }
             });
+
+        // GET /onboarding/status - Получение статуса онбординга
+        svr.Get("/onboarding/status", [&](const httplib::Request& req, httplib::Response& res) {
+            try {
+                // используем существующий паттерн extract_bearer + JWT::verify
+                auto token_opt = extract_bearer(req);
+                if (!token_opt) return json_error(res, 401, "Missing token");
+
+                auto email_opt = JWT::verify(*token_opt);
+                if (!email_opt) return json_error(res, 401, "Invalid token");
+
+                std::string email = *email_opt;
+
+                auto status = store.getOnboardingStatus(email);
+
+                // Устанавливаем заголовки кэширования (как в /profile и /balance)
+                res.set_header("Cache-Control", "no-cache, no-store, must-revalidate");
+                res.set_header("Pragma", "no-cache");
+                res.set_header("Expires", "0");
+
+                nlohmann::json response;
+                response["onboarding_completed"] = status.onboarding_completed;
+                response["demo_active"] = status.demo_active;
+                response["demo_expires_at"] = status.demo_expires_at;
+                response["subscription_active"] = status.subscription_active;
+
+                res.set_content(response.dump(), "application/json");
+
+            }
+            catch (const std::exception& e) {
+                std::cerr << "[ERROR] /onboarding/status: " << e.what() << std::endl;
+                res.status = 500;
+                res.set_content(R"({"error": "Internal server error"})", "application/json");
+            }
+            });
+
+        // POST /onboarding/activate-demo - Активация демо-версии
+        svr.Post("/onboarding/activate-demo", [&](const httplib::Request& req, httplib::Response& res) {
+            try {
+                // используем существующий паттерн extract_bearer + JWT::verify
+                auto token_opt = extract_bearer(req);
+                if (!token_opt) return json_error(res, 401, "Missing token");
+
+                auto email_opt = JWT::verify(*token_opt);
+                if (!email_opt) return json_error(res, 401, "Invalid token");
+
+                std::string email = *email_opt;
+
+                if (store.activateDemo(email)) {
+                    auto status = store.getOnboardingStatus(email);
+
+                    nlohmann::json response;
+                    response["success"] = true;
+                    response["message"] = "Demo activated successfully";
+                    response["demo_expires_at"] = status.demo_expires_at;
+
+                    res.set_content(response.dump(), "application/json");
+                }
+                else {
+                    res.status = 500;
+                    res.set_content(R"({"error": "Failed to activate demo"})", "application/json");
+                }
+
+            }
+            catch (const std::exception& e) {
+                std::cerr << "[ERROR] /onboarding/activate-demo: " << e.what() << std::endl;
+                res.status = 500;
+                res.set_content(R"({"error": "Internal server error"})", "application/json");
+            }
+        });
 
         // ---------------------------------------------------------------------
         // POST /register
@@ -1525,6 +1840,19 @@ int main()
             if (!token_opt) return json_error(res, 401, "Missing token");
             auto caller_email = JWT::verify(*token_opt);
             if (!caller_email) return json_error(res, 401, "Invalid token");
+
+            // === Проверка статуса онбординга ===
+            auto onboarding_status = store.getOnboardingStatus(*caller_email);
+
+            if (!onboarding_status.onboarding_completed) {
+                return json_error(res, 403, "Please complete onboarding first");
+            }
+
+            // Если демо-версия истекла и нет активной подписки - блокируем доступ
+            if (!onboarding_status.demo_active && !onboarding_status.subscription_active) {
+                return json_error(res, 402,
+                    "Demo period expired. Please subscribe to continue using the service.");
+            }
 
             auto body = json::parse(req.body, nullptr, false);
             if (!body.contains("agentId") || !body.contains("prompt")) {

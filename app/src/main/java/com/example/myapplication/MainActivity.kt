@@ -16,51 +16,115 @@ import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
 import androidx.navigation.compose.rememberNavController
 import androidx.navigation.navArgument
-import com.example.myapplication.ui.screens.HomeScreen
+import com.example.myapplication.ui.screens.*
 import com.example.myapplication.ui.theme.MyApplicationTheme
+import com.example.myapplication.ui.onboarding.OnboardingScreen
 import com.example.myapplication.viewmodel.MainViewModel
-import com.example.myapplication.ui.screens.LoginScreen
-import com.example.myapplication.ui.screens.RegisterScreen
-import com.example.myapplication.ui.screens.AgentCatalogScreen
-import com.example.myapplication.ui.screens.CreateAgentScreen
-import com.example.myapplication.ui.screens.InvokeAgentScreen
-import com.example.myapplication.ui.screens.OrchestrationScreen
-import com.example.myapplication.ui.screens.MyAgentsScreen
-import com.example.myapplication.ui.screens.EditAgentScreen
-import com.example.myapplication.ui.screens.ProfileScreen
+import com.example.myapplication.viewmodel.OnboardingViewModel
 
 class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         setContent {
             MyApplicationTheme {
-                Surface(modifier = Modifier.fillMaxSize(), color = MaterialTheme.colorScheme.background) {
+                Surface(
+                    modifier = Modifier.fillMaxSize(),
+                    color = MaterialTheme.colorScheme.background
+                ) {
                     val navController = rememberNavController()
                     val mainViewModel: MainViewModel = viewModel()
+                    val onboardingViewModel: OnboardingViewModel = viewModel()
 
-                    NavHost(navController = navController, startDestination = "login") {
+                    val currentUser by mainViewModel.currentUser.collectAsState()
+                    val onboardingCompleted by onboardingViewModel.onboardingCompleted.collectAsState()
+
+                    // Определение начального экрана
+                    val startDestination = when {
+                        currentUser == null -> "login" // Пользователь не авторизован
+                        !onboardingCompleted -> "onboarding" // Онбординг не пройден
+                        else -> "home" // Все готово, показываем главный экран
+                    }
+
+                    NavHost(
+                        navController = navController,
+                        startDestination = startDestination
+                    ) {
+                        // Экран входа
                         composable("login") {
                             LoginScreen(
                                 viewModel = mainViewModel,
                                 onNavigateToRegister = { navController.navigate("register") },
                                 onLoginSuccess = {
-                                    navController.navigate("home") {
-                                        popUpTo("login") { inclusive = true }
+                                    // После входа проверяем, пройден ли онбординг
+                                    if (!onboardingCompleted) {
+                                        navController.navigate("onboarding") {
+                                            popUpTo("login") { inclusive = true }
+                                        }
+                                    } else {
+                                        navController.navigate("home") {
+                                            popUpTo("login") { inclusive = true }
+                                        }
                                     }
                                 }
                             )
                         }
+
+                        // Экран регистрации
                         composable("register") {
                             RegisterScreen(
                                 viewModel = mainViewModel,
                                 onNavigateBack = { navController.popBackStack() },
                                 onRegisterSuccess = {
-                                    navController.navigate("home") {
-                                        popUpTo("login") { inclusive = true }
+                                    // После регистрации сразу показываем онбординг
+                                    navController.navigate("onboarding") {
+                                        popUpTo("register") { inclusive = true }
                                     }
                                 }
                             )
                         }
+
+                        // Экран онбординга
+                        composable("onboarding") {
+                            OnboardingScreen(
+                                mainViewModel = mainViewModel,
+                                onOnboardingComplete = { selectedPlan ->
+                                    when (selectedPlan) {
+                                        "demo" -> {
+                                            // Демо-версия: переход на главный экран
+                                            navController.navigate("home") {
+                                                popUpTo("onboarding") { inclusive = true }
+                                            }
+                                        }
+                                        "monthly", "yearly" -> {
+                                            // Платная подписка: переход на экран оплаты
+                                            navController.navigate("payment/$selectedPlan") {
+                                                popUpTo("onboarding") { inclusive = true }
+                                            }
+                                        }
+                                    }
+                                }
+                            )
+                        }
+
+                        // Экран оплаты
+                        composable(
+                            route = "payment/{plan}",
+                            arguments = listOf(navArgument("plan") { type = NavType.StringType })
+                        ) { backStackEntry ->
+                            val plan = backStackEntry.arguments?.getString("plan") ?: "monthly"
+                            PaymentScreen(
+                                plan = plan,
+                                viewModel = mainViewModel,
+                                onPaymentSuccess = {
+                                    navController.navigate("home") {
+                                        popUpTo("onboarding") { inclusive = true }
+                                    }
+                                },
+                                onBack = { navController.popBackStack() }
+                            )
+                        }
+
+                        // Главный экран
                         composable("home") {
                             HomeScreen(
                                 onNavigateToCatalog = { navController.navigate("catalog") },
@@ -71,6 +135,8 @@ class MainActivity : ComponentActivity() {
                                 onNavigateToProfile = { navController.navigate("profile") }
                             )
                         }
+
+                        // Экран профиля
                         composable("profile") {
                             ProfileScreen(
                                 viewModel = mainViewModel,
@@ -82,6 +148,8 @@ class MainActivity : ComponentActivity() {
                                 }
                             )
                         }
+
+                        // Каталог агентов
                         composable("catalog") {
                             AgentCatalogScreen(
                                 viewModel = mainViewModel,
@@ -92,6 +160,8 @@ class MainActivity : ComponentActivity() {
                                 }
                             )
                         }
+
+                        // Мои агенты
                         composable("my_agents") {
                             MyAgentsScreen(
                                 viewModel = mainViewModel,
@@ -101,6 +171,8 @@ class MainActivity : ComponentActivity() {
                                 }
                             )
                         }
+
+                        // Редактирование агента
                         composable(
                             route = "edit_agent/{agentId}",
                             arguments = listOf(navArgument("agentId") { type = NavType.StringType })
@@ -120,6 +192,8 @@ class MainActivity : ComponentActivity() {
                                 LaunchedEffect(Unit) { navController.popBackStack() }
                             }
                         }
+
+                        // Создание агента
                         composable("create_agent") {
                             CreateAgentScreen(
                                 viewModel = mainViewModel,
@@ -127,12 +201,16 @@ class MainActivity : ComponentActivity() {
                                 onAgentCreated = { navController.popBackStack() }
                             )
                         }
+
+                        // Вызов агента
                         composable("invoke") {
                             InvokeAgentScreen(
                                 viewModel = mainViewModel,
                                 onBack = { navController.popBackStack() }
                             )
                         }
+
+                        // Оркестрация
                         composable("orchestrate") {
                             OrchestrationScreen(
                                 viewModel = mainViewModel,

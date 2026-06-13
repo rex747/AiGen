@@ -44,7 +44,7 @@ object RetrofitClient {
             chain.proceed(newRequest)
         }
         .build()
-
+    // Основной API для аутентификации и работы с агентами
     val instance: AuthApi by lazy {
         Retrofit.Builder()
             .baseUrl(BASE_URL)
@@ -52,5 +52,14 @@ object RetrofitClient {
             .addConverterFactory(GsonConverterFactory.create())
             .build()
             .create(AuthApi::class.java)
+    }
+    // API для онбординга
+    val onboardingApi: OnboardingApi by lazy {
+        Retrofit.Builder()
+            .baseUrl(BASE_URL)
+            .client(client)
+            .addConverterFactory(GsonConverterFactory.create())
+            .build()
+            .create(OnboardingApi::class.java)
     }
 }
