@@ -214,7 +214,7 @@ class AgentStore {
     }
 
 public:
-    explicit AgentStore() { load(); }
+    explicit AgentStore(std::string path) : file_path_(std::move(path)) { load(); }
 
     bool create(const Agent& agent) {
         std::unique_lock<std::shared_mutex> lock(mtx_);
@@ -277,7 +277,7 @@ public:
 class TaskStore {
     mutable std::shared_mutex mtx_;
     std::map<std::string, Task> tasks_;
-    const std::string file_path_ = "tasks.json";
+    const std::string file_path_;
 
     void load() {
         std::ifstream file(file_path_);
@@ -347,7 +347,7 @@ class TaskStore {
     }
 
 public:
-    explicit TaskStore() { load(); }
+    explicit TaskStore(std::string path) : file_path_(std::move(path)) { load(); }
 
     bool create(const Task& task) {
         std::unique_lock<std::shared_mutex> lock(mtx_);
@@ -1058,26 +1058,41 @@ namespace Payment {
 // =============================================================================
 int main()
 {
-// =====================================================================
-// ЖЕСТКАЯ ПРИВЯЗКА К ДИРЕКТОРИИ ИСПОЛНЯЕМОГО ФАЙЛА (РЕШЕНИЕ ПРОБЛЕМЫ CWD)
-// =====================================================================
-try {
-    // Получаем абсолютный путь к запущенному бинарнику server
-    std::filesystem::path exe_path = std::filesystem::canonical("/proc/self/exe");
-    // Меняем рабочую директорию процесса на папку, где лежит бинарник
-    std::filesystem::current_path(exe_path.parent_path());
-    std::cout << "[MAIN] Working directory forced to: " << std::filesystem::current_path() << std::endl;
+    // =====================================================================
+    // ВЫЧИСЛЕНИЕ АБСОЛЮТНЫХ ПУТЕЙ (РЕШАЕТ ПРОБЛЕМУ РАЗНЫХ ФАЙЛОВ)
+    // =====================================================================
+    std::filesystem::path base_dir;
+    try {
+        base_dir = std::filesystem::canonical("/proc/self/exe").parent_path();
     }
     catch (const std::exception& e) {
-        std::cerr << "[FATAL] Failed to resolve executable path: " << e.what() << std::endl;
+        std::cerr << "[FATAL] Cannot resolve executable path: " << e.what() << std::endl;
         return 1;
-    };
+    }
+
+    std::string users_db = (base_dir / "users.json").string();
+    std::string agents_db = (base_dir / "agents.json").string();
+    std::string tasks_db = (base_dir / "tasks.json").string();
+
+    std::cout << "========================================================\n";
+    std::cout << "[MAIN] ABSOLUTE PATHS FORCED:\n";
+    std::cout << "[MAIN] Base Dir : " << base_dir << "\n";
+    std::cout << "[MAIN] Users DB : " << users_db << "\n";
+    std::cout << "[MAIN] Agents DB: " << agents_db << "\n";
+    std::cout << "[MAIN] Tasks DB : " << tasks_db << "\n";
+    std::cout << "========================================================\n";
     // =====================================================================
+
     curl_global_init(CURL_GLOBAL_ALL);
     std::cout << "[MAIN] Starting SecureAuthServer (Direct Disk I/O Mode)..." << std::endl;
+
     try {
-        UserStore store(Config::USERS_FILE);
-        std::cout << "[INFO] UserStore initialized. Reading directly from " << Config::USERS_FILE << std::endl;
+        // Передаем абсолютные пути в хранилища
+        UserStore store(users_db);
+        AgentStore agent_store(agents_db);
+        TaskStore task_store(tasks_db);
+
+        std::cout << "[INFO] Stores initialized with absolute paths." << std::endl;
 
         RateLimiter login_limiter, register_limiter;
         std::atomic<bool> running{ true };
@@ -1088,11 +1103,8 @@ try {
                 login_limiter.cleanup();
                 register_limiter.cleanup();
             }
-            });
-
-        AgentStore agent_store;
-        TaskStore task_store;
-
+        });
+        
         httplib::Server svr;
         svr.set_base_dir("./public");
         svr.set_logger([](const auto& req, const auto& res) {
