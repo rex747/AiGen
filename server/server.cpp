@@ -1056,7 +1056,23 @@ namespace Payment {
 // =============================================================================
 // MAIN
 // =============================================================================
-int main() {
+int main()
+{
+// =====================================================================
+// ЖЕСТКАЯ ПРИВЯЗКА К ДИРЕКТОРИИ ИСПОЛНЯЕМОГО ФАЙЛА (РЕШЕНИЕ ПРОБЛЕМЫ CWD)
+// =====================================================================
+try {
+    // Получаем абсолютный путь к запущенному бинарнику server
+    std::filesystem::path exe_path = std::filesystem::canonical("/proc/self/exe");
+    // Меняем рабочую директорию процесса на папку, где лежит бинарник
+    std::filesystem::current_path(exe_path.parent_path());
+    std::cout << "[MAIN] Working directory forced to: " << std::filesystem::current_path() << std::endl;
+    }
+    catch (const std::exception& e) {
+        std::cerr << "[FATAL] Failed to resolve executable path: " << e.what() << std::endl;
+        return 1;
+    };
+    // =====================================================================
     curl_global_init(CURL_GLOBAL_ALL);
     std::cout << "[MAIN] Starting SecureAuthServer (Direct Disk I/O Mode)..." << std::endl;
     try {
