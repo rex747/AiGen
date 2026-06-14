@@ -187,8 +187,8 @@ fun OnboardingGradientBackground(
             .background(
                 brush = Brush.verticalGradient(
                     colors = listOf(
-                        BackgroundLight,
-                        BackgroundLight.copy(alpha = 0.95f)
+                        OnboardingGradientStart,
+                        OnboardingGradientEnd
                     )
                 )
             ),

@@ -19,6 +19,16 @@ import com.example.myapplication.model.OnboardingData
 import com.example.myapplication.ui.theme.*
 import kotlin.time.Duration.Companion.milliseconds
 import kotlinx.coroutines.delay
+import androidx.compose.foundation.clickable
+import androidx.compose.foundation.Image
+import androidx.compose.ui.res.painterResource
+import com.example.myapplication.R
+import androidx.compose.foundation.text.KeyboardOptions
+import androidx.compose.ui.text.input.ImeAction
+import androidx.compose.ui.text.input.KeyboardType
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Star
+import androidx.compose.material3.Icon
 
 // ============================================================================
 // КАРТОЧКИ 1-3: КРАТКИЙ РАССКАЗ О ПРИЛОЖЕНИИ
@@ -37,6 +47,14 @@ fun OnboardingCard1_Introduction() {
         horizontalAlignment = Alignment.CenterHorizontally,
         verticalArrangement = Arrangement.Center
     ) {
+        // Добавляем логотип над надписями
+        Image(
+            painter = painterResource(id = R.drawable.logo),
+            contentDescription = "Логотип AiGen",
+            modifier = Modifier.size(120.dp)
+        )
+
+        Spacer(modifier = Modifier.height(24.dp))
         OnboardingCardTitle(
             title = "AiGen",
             subtitle = "B2B платформа для координации ИИ-агентов разных компаний"
@@ -262,7 +280,7 @@ fun OnboardingCard6_RequiredSkills(
     selectedSkills: List<String>,
     onSkillsChanged: (List<String>) -> Unit
 ) {
-    var skills by remember { mutableStateOf(selectedSkills.toMutableSet()) }
+    var skills by remember { mutableStateOf(selectedSkills.toSet()) }
 
     LaunchedEffect(skills) {
         onSkillsChanged(skills.toList())
@@ -300,10 +318,10 @@ fun OnboardingCard6_RequiredSkills(
                 text = skill,
                 checked = skills.contains(skill),
                 onCheckedChange = { checked ->
-                    if (checked) {
-                        skills.add(skill)
+                    skills = if (checked) {
+                        skills + skill   // ← Создаёт НОВЫЙ Set
                     } else {
-                        skills.remove(skill)
+                        skills - skill   // ← Создаёт НОВЫЙ Set
                     }
                 }
             )
@@ -325,10 +343,14 @@ fun OnboardingCard7_CurrentDuration(
     currentDuration: Int,
     onDurationChanged: (Int) -> Unit
 ) {
-    var duration by remember { mutableStateOf(currentDuration.toFloat().coerceAtLeast(1f)) }
+    var durationText by remember { mutableStateOf(if (currentDuration > 0) currentDuration.toString() else "") }
 
-    LaunchedEffect(duration) {
-        onDurationChanged(duration.toInt())
+    // Парсинг и валидация введенного значения
+    LaunchedEffect(durationText) {
+        val parsedValue = durationText.toIntOrNull()
+        if (parsedValue != null && parsedValue in 1..100) {
+            onDurationChanged(parsedValue)
+        }
     }
 
     Column(
@@ -340,34 +362,48 @@ fun OnboardingCard7_CurrentDuration(
     ) {
         OnboardingCardTitle(
             title = "Сколько времени занимают ваши задачи?",
-            subtitle = "Укажите среднее время выполнения типичной задачи"
+            subtitle = "Укажите среднее время выполнения типичной задачи (в часах)"
         )
 
         Spacer(modifier = Modifier.height(48.dp))
 
-        Text(
-            text = "${duration.toInt()} часов",
-            style = MaterialTheme.typography.displayMedium,
-            fontWeight = FontWeight.Bold,
-            color = PrimaryLight
-        )
-
-        Spacer(modifier = Modifier.height(24.dp))
-
-        Slider(
-            value = duration,
-            onValueChange = { duration = it },
-            valueRange = 1f..100f,
-            steps = 98,
+        OutlinedTextField(
+            value = durationText,
+            onValueChange = { newText ->
+                // Разрешаем только цифры и ограничиваем длину
+                if (newText.all { it.isDigit() } && newText.length <= 3) {
+                    durationText = newText
+                }
+            },
+            label = { Text("Количество часов") },
+            placeholder = { Text("Например: 8") },
+            keyboardOptions = KeyboardOptions(
+                keyboardType = KeyboardType.Number,
+                imeAction = ImeAction.Done
+            ),
+            singleLine = true,
             modifier = Modifier.fillMaxWidth()
         )
 
-        Row(
-            modifier = Modifier.fillMaxWidth(),
-            horizontalArrangement = Arrangement.SpaceBetween
-        ) {
-            Text("1 час", style = MaterialTheme.typography.labelSmall)
-            Text("100 часов", style = MaterialTheme.typography.labelSmall)
+        Spacer(modifier = Modifier.height(16.dp))
+
+        Text(
+            text = "Допустимый диапазон: от 1 до 100 часов",
+            style = MaterialTheme.typography.bodySmall,
+            color = MaterialTheme.colorScheme.onBackground.copy(alpha = 0.6f),
+            textAlign = TextAlign.Center
+        )
+
+        // Отображение текущего значения, если оно валидно
+        val currentValue = durationText.toIntOrNull()
+        if (currentValue != null && currentValue in 1..100) {
+            Spacer(modifier = Modifier.height(24.dp))
+            Text(
+                text = "$currentValue часов",
+                style = MaterialTheme.typography.headlineMedium,
+                fontWeight = FontWeight.Bold,
+                color = PrimaryLight
+            )
         }
     }
 }
@@ -381,10 +417,14 @@ fun OnboardingCard8_EstimatedAiDuration(
     estimatedDuration: Int,
     onDurationChanged: (Int) -> Unit
 ) {
-    var duration by remember { mutableStateOf(estimatedDuration.toFloat().coerceAtLeast(1f)) }
+    var durationText by remember { mutableStateOf(if (estimatedDuration > 0) estimatedDuration.toString() else "") }
 
-    LaunchedEffect(duration) {
-        onDurationChanged(duration.toInt())
+    // Парсинг и валидация введенного значения
+    LaunchedEffect(durationText) {
+        val parsedValue = durationText.toIntOrNull()
+        if (parsedValue != null && parsedValue in 1..100) {
+            onDurationChanged(parsedValue)
+        }
     }
 
     Column(
@@ -396,35 +436,28 @@ fun OnboardingCard8_EstimatedAiDuration(
     ) {
         OnboardingCardTitle(
             title = "Сколько времени это займет с AI?",
-            subtitle = "Ожидаемое время выполнения с помощью AI-агентов"
+            subtitle = "Ожидаемое время выполнения с помощью AI-агентов (в часах)"
         )
 
         Spacer(modifier = Modifier.height(48.dp))
 
-        Text(
-            text = "${duration.toInt()} часов",
-            style = MaterialTheme.typography.displayMedium,
-            fontWeight = FontWeight.Bold,
-            color = SecondaryLight
-        )
-
-        Spacer(modifier = Modifier.height(24.dp))
-
-        Slider(
-            value = duration,
-            onValueChange = { duration = it },
-            valueRange = 1f..100f,
-            steps = 98,
+        OutlinedTextField(
+            value = durationText,
+            onValueChange = { newText ->
+                // Разрешаем только цифры и ограничиваем длину
+                if (newText.all { it.isDigit() } && newText.length <= 3) {
+                    durationText = newText
+                }
+            },
+            label = { Text("Количество часов") },
+            placeholder = { Text("Например: 2") },
+            keyboardOptions = KeyboardOptions(
+                keyboardType = KeyboardType.Number,
+                imeAction = ImeAction.Done
+            ),
+            singleLine = true,
             modifier = Modifier.fillMaxWidth()
         )
-
-        Row(
-            modifier = Modifier.fillMaxWidth(),
-            horizontalArrangement = Arrangement.SpaceBetween
-        ) {
-            Text("1 час", style = MaterialTheme.typography.labelSmall)
-            Text("100 часов", style = MaterialTheme.typography.labelSmall)
-        }
 
         Spacer(modifier = Modifier.height(16.dp))
 
@@ -434,6 +467,27 @@ fun OnboardingCard8_EstimatedAiDuration(
             color = MaterialTheme.colorScheme.onBackground.copy(alpha = 0.6f),
             textAlign = TextAlign.Center
         )
+
+        Spacer(modifier = Modifier.height(8.dp))
+
+        Text(
+            text = "Допустимый диапазон: от 1 до 100 часов",
+            style = MaterialTheme.typography.bodySmall,
+            color = MaterialTheme.colorScheme.onBackground.copy(alpha = 0.6f),
+            textAlign = TextAlign.Center
+        )
+
+        // Отображение текущего значения, если оно валидно
+        val currentValue = durationText.toIntOrNull()
+        if (currentValue != null && currentValue in 1..100) {
+            Spacer(modifier = Modifier.height(24.dp))
+            Text(
+                text = "$currentValue часов",
+                style = MaterialTheme.typography.headlineMedium,
+                fontWeight = FontWeight.Bold,
+                color = SecondaryLight
+            )
+        }
     }
 }
 
@@ -549,7 +603,7 @@ fun OnboardingCard10_AgentConnections() {
         CircularProgressIndicator(
             progress = { progress },
             modifier = Modifier.size(120.dp),
-            color = PrimaryLight,
+            color = SuccessDark,
             strokeWidth = 8.dp
         )
 
@@ -559,16 +613,46 @@ fun OnboardingCard10_AgentConnections() {
             text = "${(progress * 100).toInt()}%",
             style = MaterialTheme.typography.headlineMedium,
             fontWeight = FontWeight.Bold,
-            color = PrimaryLight
+            color = BackgroundDark
         )
 
         Spacer(modifier = Modifier.height(48.dp))
 
-        ReviewCard(
-            reviewerName = "Алексей К.",
-            reviewText = "Персонализация заняла всего пару минут, но результат превзошел ожидания!",
-            rating = 5f
-        )
+        Card(
+            modifier = Modifier.fillMaxWidth(),
+            colors = CardDefaults.cardColors(containerColor = CardBackground),
+            shape = RoundedCornerShape(12.dp)
+        ) {
+            Column(
+                modifier = Modifier.padding(16.dp)
+            ) {
+                Row(
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Text(
+                        text = "Алексей К.",
+                        style = MaterialTheme.typography.titleMedium,
+                        fontWeight = FontWeight.Bold,
+                        color = Color.Black  // ← ЧЁРНЫЙ ЦВЕТ ИМЕНИ
+                    )
+                    Spacer(modifier = Modifier.width(8.dp))
+                    repeat(5) { index ->
+                        Icon(
+                            imageVector = androidx.compose.material.icons.Icons.Default.Star,
+                            contentDescription = "Star",
+                            tint = if (index < 5) WarningLight else DividerLight,
+                            modifier = Modifier.size(16.dp)
+                        )
+                    }
+                }
+                Spacer(modifier = Modifier.height(8.dp))
+                Text(
+                    text = "Персонализация AI агентов заняла всего пару минут, но результат превзошел ожидания!",
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = Color.Black  // ← ЧЁРНЫЙ ЦВЕТ ОТЗЫВА
+                )
+            }
+        }
     }
 }
 
@@ -617,11 +701,41 @@ fun OnboardingCard11_OrchestrationPlatform() {
 
         Spacer(modifier = Modifier.height(48.dp))
 
-        ReviewCard(
-            reviewerName = "Мария С.",
-            reviewText = "Оркестрация работает безупречно. Агенты взаимодействуют как единый механизм.",
-            rating = 5f
-        )
+        Card(
+            modifier = Modifier.fillMaxWidth(),
+            colors = CardDefaults.cardColors(containerColor = CardBackground),
+            shape = RoundedCornerShape(12.dp)
+        ) {
+            Column(
+                modifier = Modifier.padding(16.dp)
+            ) {
+                Row(
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Text(
+                        text = "Мария С.",
+                        style = MaterialTheme.typography.titleMedium,
+                        fontWeight = FontWeight.Bold,
+                        color = Color.Black  // ← ЧЁРНЫЙ ЦВЕТ ИМЕНИ
+                    )
+                    Spacer(modifier = Modifier.width(8.dp))
+                    repeat(5) { index ->
+                        Icon(
+                            imageVector = androidx.compose.material.icons.Icons.Default.Star,
+                            contentDescription = "Star",
+                            tint = if (index < 5) WarningLight else DividerLight,
+                            modifier = Modifier.size(16.dp)
+                        )
+                    }
+                }
+                Spacer(modifier = Modifier.height(8.dp))
+                Text(
+                    text = "Оркестрация работает безупречно. Агенты взаимодействуют как единый механизм.",
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = Color.Black  // ← ЧЁРНЫЙ ЦВЕТ ОТЗЫВА
+                )
+            }
+        }
     }
 }
 
@@ -670,11 +784,41 @@ fun OnboardingCard12_PersonalConductor() {
 
         Spacer(modifier = Modifier.height(48.dp))
 
-        ReviewCard(
-            reviewerName = "Дмитрий В.",
-            reviewText = "Персональный дирижер понимает мои задачи с полуслова. Невероятно удобно!",
-            rating = 5f
-        )
+        Card(
+            modifier = Modifier.fillMaxWidth(),
+            colors = CardDefaults.cardColors(containerColor = CardBackground),
+            shape = RoundedCornerShape(12.dp)
+        ) {
+            Column(
+                modifier = Modifier.padding(16.dp)
+            ) {
+                Row(
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Text(
+                        text = "Дмитрий В.",
+                        style = MaterialTheme.typography.titleMedium,
+                        fontWeight = FontWeight.Bold,
+                        color = Color.Black  // ← ЧЁРНЫЙ ЦВЕТ ИМЕНИ
+                    )
+                    Spacer(modifier = Modifier.width(8.dp))
+                    repeat(5) { index ->
+                        Icon(
+                            imageVector = androidx.compose.material.icons.Icons.Default.Star,
+                            contentDescription = "Star",
+                            tint = if (index < 5) WarningLight else DividerLight,
+                            modifier = Modifier.size(16.dp)
+                        )
+                    }
+                }
+                Spacer(modifier = Modifier.height(8.dp))
+                Text(
+                    text = "Персональный дирижер понимает мои задачи с полуслова. Невероятно удобно!",
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = Color.Black  // ← ЧЁРНЫЙ ЦВЕТ ОТЗЫВА
+                )
+            }
+        }
     }
 }
 
@@ -1325,7 +1469,7 @@ private fun ValueItem(
             text = value,
             style = MaterialTheme.typography.displayLarge,
             fontWeight = FontWeight.Bold,
-            color = PrimaryLight
+            color = SuccessLight
         )
         Spacer(modifier = Modifier.height(8.dp))
         Text(
@@ -1348,9 +1492,9 @@ private fun PurposeOption(
             .padding(vertical = 4.dp),
         shape = RoundedCornerShape(12.dp),
         colors = CardDefaults.cardColors(
-            containerColor = if (selected) PrimaryLight.copy(alpha = 0.1f) else CardBackground
+            containerColor = if (selected) SecondaryLight.copy(alpha = 0.15f) else SurfaceLight
         ),
-        border = if (selected) BorderStroke(width = 2.dp, color = PrimaryLight) else null
+        border = if (selected) BorderStroke(width = 2.dp, color = SecondaryLight) else BorderStroke(width = 1.dp, color = DividerLight)
     ) {
         Row(
             modifier = Modifier
@@ -1362,14 +1506,16 @@ private fun PurposeOption(
                 selected = selected,
                 onClick = onClick,
                 colors = RadioButtonDefaults.colors(
-                    selectedColor = PrimaryLight
+                    selectedColor = SuccessLight,
+                    unselectedColor = TertiaryLight.copy(alpha = 0.6f)
                 )
             )
             Spacer(modifier = Modifier.width(12.dp))
             Text(
                 text = text,
                 style = MaterialTheme.typography.bodyLarge,
-                color = MaterialTheme.colorScheme.onSurface
+                fontWeight = if (selected) FontWeight.SemiBold else FontWeight.Normal,
+                color = if (selected) BackgroundDark else SurfaceDark
             )
         }
     }
@@ -1384,12 +1530,12 @@ private fun SkillCheckbox(
     Card(
         modifier = Modifier
             .fillMaxWidth()
-            .padding(vertical = 4.dp),
+            .clickable { onCheckedChange(!checked) },
         shape = RoundedCornerShape(12.dp),
         colors = CardDefaults.cardColors(
-            containerColor = if (checked) SecondaryLight.copy(alpha = 0.1f) else CardBackground
+            containerColor = if (checked) SuccessLight.copy(alpha = 0.15f) else CardBackground
         ),
-        border = if (checked) BorderStroke(width = 2.dp, color = SecondaryLight) else null
+        border = if (checked) BorderStroke(width = 2.dp, color = SuccessLight) else BorderStroke(width = 1.dp, color = DividerLight)
     ) {
         Row(
             modifier = Modifier
@@ -1401,14 +1547,16 @@ private fun SkillCheckbox(
                 checked = checked,
                 onCheckedChange = onCheckedChange,
                 colors = CheckboxDefaults.colors(
-                    checkedColor = SecondaryLight
+                    checkedColor = SuccessLight,
+                    uncheckedColor = OnBackgroundLight.copy(alpha = 0.6f),
+                    checkmarkColor = Color.White
                 )
             )
             Spacer(modifier = Modifier.width(12.dp))
             Text(
                 text = text,
                 style = MaterialTheme.typography.bodyLarge,
-                color = MaterialTheme.colorScheme.onSurface
+                color = Color.Black
             )
         }
     }
