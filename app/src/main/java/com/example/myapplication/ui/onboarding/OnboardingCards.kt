@@ -1,18 +1,24 @@
 package com.example.myapplication.ui.onboarding
 
+import android.annotation.SuppressLint
+import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
 import com.example.myapplication.model.OnboardingData
 import com.example.myapplication.ui.theme.*
-import androidx.compose.foundation.shape.RoundedCornerShape
+import kotlin.time.Duration.Companion.milliseconds
+import kotlinx.coroutines.delay
 
 // ============================================================================
 // КАРТОЧКИ 1-3: КРАТКИЙ РАССКАЗ О ПРИЛОЖЕНИИ
@@ -20,11 +26,10 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 
 /**
  * Карточка 1: Введение - B2B платформа для координации ИИ-агентов
+ * БЕЗ кнопок навигации — управление свайпами
  */
 @Composable
-fun OnboardingCard1_Introduction(
-    onNext: () -> Unit
-) {
+fun OnboardingCard1_Introduction() {
     Column(
         modifier = Modifier
             .fillMaxSize()
@@ -45,24 +50,15 @@ fun OnboardingCard1_Introduction(
             textAlign = TextAlign.Center,
             color = MaterialTheme.colorScheme.onBackground.copy(alpha = 0.7f)
         )
-
-        Spacer(modifier = Modifier.height(48.dp))
-
-        OnboardingNextButton(
-            text = "Начать",
-            onClick = onNext
-        )
     }
 }
 
 /**
  * Карточка 2: Основные возможности платформы
+ * БЕЗ кнопок навигации — управление свайпами
  */
 @Composable
-fun OnboardingCard2_Features(
-    onNext: () -> Unit,
-    onBack: () -> Unit
-) {
+fun OnboardingCard2_Features() {
     Column(
         modifier = Modifier
             .fillMaxSize()
@@ -99,31 +95,15 @@ fun OnboardingCard2_Features(
             title = "Навыки агентов",
             description = "Добавляйте специализированные навыки для расширения возможностей"
         )
-
-        Spacer(modifier = Modifier.height(48.dp))
-
-        Row(
-            modifier = Modifier.fillMaxWidth(),
-            horizontalArrangement = Arrangement.SpaceBetween
-        ) {
-            OnboardingBackButton(onClick = onBack)
-            OnboardingNextButton(
-                text = "Далее",
-                onClick = onNext,
-                modifier = Modifier.weight(0.7f)
-            )
-        }
     }
 }
 
 /**
  * Карточка 3: Ценность платформы
+ * БЕЗ кнопок навигации — управление свайпами
  */
 @Composable
-fun OnboardingCard3_Value(
-    onNext: () -> Unit,
-    onBack: () -> Unit
-) {
+fun OnboardingCard3_Value() {
     Column(
         modifier = Modifier
             .fillMaxSize()
@@ -156,20 +136,6 @@ fun OnboardingCard3_Value(
             value = "100%",
             label = "Безопасный обмен данными"
         )
-
-        Spacer(modifier = Modifier.height(48.dp))
-
-        Row(
-            modifier = Modifier.fillMaxWidth(),
-            horizontalArrangement = Arrangement.SpaceBetween
-        ) {
-            OnboardingBackButton(onClick = onBack)
-            OnboardingNextButton(
-                text = "Далее",
-                onClick = onNext,
-                modifier = Modifier.weight(0.7f)
-            )
-        }
     }
 }
 
@@ -179,15 +145,21 @@ fun OnboardingCard3_Value(
 
 /**
  * Карточка 4: Для чего нужны AI-агенты
+ * БЕЗ кнопок навигации — управление свайпами
  */
 @Composable
 fun OnboardingCard4_AiPurpose(
     aiPurpose: String,
-    onPurposeSelected: (String) -> Unit,
-    onNext: () -> Unit,
-    onBack: () -> Unit
+    onPurposeSelected: (String) -> Unit
 ) {
     var selectedPurpose by remember { mutableStateOf(aiPurpose) }
+
+    // Сохраняем выбор при изменении
+    LaunchedEffect(selectedPurpose) {
+        if (selectedPurpose.isNotBlank()) {
+            onPurposeSelected(selectedPurpose)
+        }
+    }
 
     Column(
         modifier = Modifier
@@ -222,38 +194,25 @@ fun OnboardingCard4_AiPurpose(
             )
             Spacer(modifier = Modifier.height(12.dp))
         }
-
-        Spacer(modifier = Modifier.height(32.dp))
-
-        Row(
-            modifier = Modifier.fillMaxWidth(),
-            horizontalArrangement = Arrangement.SpaceBetween
-        ) {
-            OnboardingBackButton(onClick = onBack)
-            OnboardingNextButton(
-                text = "Далее",
-                enabled = selectedPurpose.isNotBlank(),
-                onClick = {
-                    onPurposeSelected(selectedPurpose)
-                    onNext()
-                },
-                modifier = Modifier.weight(0.7f)
-            )
-        }
     }
 }
 
 /**
  * Карточка 5: Сфера применения
+ * БЕЗ кнопок навигации — управление свайпами
  */
 @Composable
 fun OnboardingCard5_Industry(
     industry: String,
-    onIndustrySelected: (String) -> Unit,
-    onNext: () -> Unit,
-    onBack: () -> Unit
+    onIndustrySelected: (String) -> Unit
 ) {
     var selectedIndustry by remember { mutableStateOf(industry) }
+
+    LaunchedEffect(selectedIndustry) {
+        if (selectedIndustry.isNotBlank()) {
+            onIndustrySelected(selectedIndustry)
+        }
+    }
 
     Column(
         modifier = Modifier
@@ -290,38 +249,24 @@ fun OnboardingCard5_Industry(
             )
             Spacer(modifier = Modifier.height(12.dp))
         }
-
-        Spacer(modifier = Modifier.height(32.dp))
-
-        Row(
-            modifier = Modifier.fillMaxWidth(),
-            horizontalArrangement = Arrangement.SpaceBetween
-        ) {
-            OnboardingBackButton(onClick = onBack)
-            OnboardingNextButton(
-                text = "Далее",
-                enabled = selectedIndustry.isNotBlank(),
-                onClick = {
-                    onIndustrySelected(selectedIndustry)
-                    onNext()
-                },
-                modifier = Modifier.weight(0.7f)
-            )
-        }
     }
 }
 
 /**
  * Карточка 6: Необходимые навыки агентов
+ * БЕЗ кнопок навигации — управление свайпами
  */
+@SuppressLint("MutableCollectionMutableState")
 @Composable
 fun OnboardingCard6_RequiredSkills(
     selectedSkills: List<String>,
-    onSkillsChanged: (List<String>) -> Unit,
-    onNext: () -> Unit,
-    onBack: () -> Unit
+    onSkillsChanged: (List<String>) -> Unit
 ) {
     var skills by remember { mutableStateOf(selectedSkills.toMutableSet()) }
+
+    LaunchedEffect(skills) {
+        onSkillsChanged(skills.toList())
+    }
 
     Column(
         modifier = Modifier
@@ -364,24 +309,6 @@ fun OnboardingCard6_RequiredSkills(
             )
             Spacer(modifier = Modifier.height(12.dp))
         }
-
-        Spacer(modifier = Modifier.height(32.dp))
-
-        Row(
-            modifier = Modifier.fillMaxWidth(),
-            horizontalArrangement = Arrangement.SpaceBetween
-        ) {
-            OnboardingBackButton(onClick = onBack)
-            OnboardingNextButton(
-                text = "Далее",
-                enabled = skills.isNotEmpty(),
-                onClick = {
-                    onSkillsChanged(skills.toList())
-                    onNext()
-                },
-                modifier = Modifier.weight(0.7f)
-            )
-        }
     }
 }
 
@@ -391,15 +318,18 @@ fun OnboardingCard6_RequiredSkills(
 
 /**
  * Карточка 7: Текущее время решения задач
+ * БЕЗ кнопок навигации — управление свайпами
  */
 @Composable
 fun OnboardingCard7_CurrentDuration(
     currentDuration: Int,
-    onDurationChanged: (Int) -> Unit,
-    onNext: () -> Unit,
-    onBack: () -> Unit
+    onDurationChanged: (Int) -> Unit
 ) {
-    var duration by remember { mutableStateOf(currentDuration.toFloat()) }
+    var duration by remember { mutableStateOf(currentDuration.toFloat().coerceAtLeast(1f)) }
+
+    LaunchedEffect(duration) {
+        onDurationChanged(duration.toInt())
+    }
 
     Column(
         modifier = Modifier
@@ -439,37 +369,23 @@ fun OnboardingCard7_CurrentDuration(
             Text("1 час", style = MaterialTheme.typography.labelSmall)
             Text("100 часов", style = MaterialTheme.typography.labelSmall)
         }
-
-        Spacer(modifier = Modifier.height(48.dp))
-
-        Row(
-            modifier = Modifier.fillMaxWidth(),
-            horizontalArrangement = Arrangement.SpaceBetween
-        ) {
-            OnboardingBackButton(onClick = onBack)
-            OnboardingNextButton(
-                text = "Далее",
-                onClick = {
-                    onDurationChanged(duration.toInt())
-                    onNext()
-                },
-                modifier = Modifier.weight(0.7f)
-            )
-        }
     }
 }
 
 /**
  * Карточка 8: Ожидаемое время с AI-агентами
+ * БЕЗ кнопок навигации — управление свайпами
  */
 @Composable
 fun OnboardingCard8_EstimatedAiDuration(
     estimatedDuration: Int,
-    onDurationChanged: (Int) -> Unit,
-    onNext: () -> Unit,
-    onBack: () -> Unit
+    onDurationChanged: (Int) -> Unit
 ) {
     var duration by remember { mutableStateOf(estimatedDuration.toFloat().coerceAtLeast(1f)) }
+
+    LaunchedEffect(duration) {
+        onDurationChanged(duration.toInt())
+    }
 
     Column(
         modifier = Modifier
@@ -518,35 +434,17 @@ fun OnboardingCard8_EstimatedAiDuration(
             color = MaterialTheme.colorScheme.onBackground.copy(alpha = 0.6f),
             textAlign = TextAlign.Center
         )
-
-        Spacer(modifier = Modifier.height(48.dp))
-
-        Row(
-            modifier = Modifier.fillMaxWidth(),
-            horizontalArrangement = Arrangement.SpaceBetween
-        ) {
-            OnboardingBackButton(onClick = onBack)
-            OnboardingNextButton(
-                text = "Далее",
-                onClick = {
-                    onDurationChanged(duration.toInt())
-                    onNext()
-                },
-                modifier = Modifier.weight(0.7f)
-            )
-        }
     }
 }
 
 /**
  * Карточка 9: График сравнения времени
+ * БЕЗ кнопок навигации — управление свайпами
  */
 @Composable
 fun OnboardingCard9_TimeComparisonChart(
     currentDuration: Int,
-    estimatedDuration: Int,
-    onNext: () -> Unit,
-    onBack: () -> Unit
+    estimatedDuration: Int
 ) {
     val timeSaved = currentDuration - estimatedDuration
     val percentageSaved = if (currentDuration > 0) {
@@ -567,7 +465,6 @@ fun OnboardingCard9_TimeComparisonChart(
 
         Spacer(modifier = Modifier.height(48.dp))
 
-        // Визуальное сравнение
         ComparisonBar(
             label = "Без AI",
             value = currentDuration,
@@ -615,20 +512,6 @@ fun OnboardingCard9_TimeComparisonChart(
                 )
             }
         }
-
-        Spacer(modifier = Modifier.height(48.dp))
-
-        Row(
-            modifier = Modifier.fillMaxWidth(),
-            horizontalArrangement = Arrangement.SpaceBetween
-        ) {
-            OnboardingBackButton(onClick = onBack)
-            OnboardingNextButton(
-                text = "Далее",
-                onClick = onNext,
-                modifier = Modifier.weight(0.7f)
-            )
-        }
     }
 }
 
@@ -638,16 +521,14 @@ fun OnboardingCard9_TimeComparisonChart(
 
 /**
  * Карточка 10: Настройка связей AI-агентов
+ * БЕЗ кнопок навигации — управление свайпами
  */
 @Composable
-fun OnboardingCard10_AgentConnections(
-    onNext: () -> Unit,
-    onBack: () -> Unit
-) {
-    var progress by remember { mutableStateOf(0f) }
+fun OnboardingCard10_AgentConnections() {
+    var progress by remember { mutableFloatStateOf(0f) }
 
     LaunchedEffect(Unit) {
-        kotlinx.coroutines.delay(500)
+        delay(500.milliseconds)
         progress = 1f
     }
 
@@ -688,35 +569,19 @@ fun OnboardingCard10_AgentConnections(
             reviewText = "Персонализация заняла всего пару минут, но результат превзошел ожидания!",
             rating = 5f
         )
-
-        Spacer(modifier = Modifier.height(32.dp))
-
-        Row(
-            modifier = Modifier.fillMaxWidth(),
-            horizontalArrangement = Arrangement.SpaceBetween
-        ) {
-            OnboardingBackButton(onClick = onBack)
-            OnboardingNextButton(
-                text = "Далее",
-                onClick = onNext,
-                modifier = Modifier.weight(0.7f)
-            )
-        }
     }
 }
 
 /**
  * Карточка 11: Подготовка площадки оркестрации
+ * БЕЗ кнопок навигации — управление свайпами
  */
 @Composable
-fun OnboardingCard11_OrchestrationPlatform(
-    onNext: () -> Unit,
-    onBack: () -> Unit
-) {
-    var progress by remember { mutableStateOf(0f) }
+fun OnboardingCard11_OrchestrationPlatform() {
+    var progress by remember { mutableFloatStateOf(0f) }
 
     LaunchedEffect(Unit) {
-        kotlinx.coroutines.delay(500)
+        delay(500.milliseconds)
         progress = 1f
     }
 
@@ -757,35 +622,19 @@ fun OnboardingCard11_OrchestrationPlatform(
             reviewText = "Оркестрация работает безупречно. Агенты взаимодействуют как единый механизм.",
             rating = 5f
         )
-
-        Spacer(modifier = Modifier.height(32.dp))
-
-        Row(
-            modifier = Modifier.fillMaxWidth(),
-            horizontalArrangement = Arrangement.SpaceBetween
-        ) {
-            OnboardingBackButton(onClick = onBack)
-            OnboardingNextButton(
-                text = "Далее",
-                onClick = onNext,
-                modifier = Modifier.weight(0.7f)
-            )
-        }
     }
 }
 
 /**
  * Карточка 12: Создание персонального дирижера
+ * БЕЗ кнопок навигации — управление свайпами
  */
 @Composable
-fun OnboardingCard12_PersonalConductor(
-    onNext: () -> Unit,
-    onBack: () -> Unit
-) {
-    var progress by remember { mutableStateOf(0f) }
+fun OnboardingCard12_PersonalConductor() {
+    var progress by remember { mutableFloatStateOf(0f) }
 
     LaunchedEffect(Unit) {
-        kotlinx.coroutines.delay(500)
+        delay(500.milliseconds)
         progress = 1f
     }
 
@@ -826,20 +675,6 @@ fun OnboardingCard12_PersonalConductor(
             reviewText = "Персональный дирижер понимает мои задачи с полуслова. Невероятно удобно!",
             rating = 5f
         )
-
-        Spacer(modifier = Modifier.height(32.dp))
-
-        Row(
-            modifier = Modifier.fillMaxWidth(),
-            horizontalArrangement = Arrangement.SpaceBetween
-        ) {
-            OnboardingBackButton(onClick = onBack)
-            OnboardingNextButton(
-                text = "Далее",
-                onClick = onNext,
-                modifier = Modifier.weight(0.7f)
-            )
-        }
     }
 }
 
@@ -849,14 +684,13 @@ fun OnboardingCard12_PersonalConductor(
 
 /**
  * Карточка 13: Задать вопрос AI-агенту
+ * БЕЗ кнопок навигации — управление свайпами
  */
 @Composable
 fun OnboardingCard13_AskAiQuestion(
     aiResponse: String?,
     isLoading: Boolean,
-    onAskQuestion: (String) -> Unit,
-    onNext: () -> Unit,
-    onBack: () -> Unit
+    onAskQuestion: (String) -> Unit
 ) {
     var question by remember { mutableStateOf("") }
 
@@ -937,32 +771,17 @@ fun OnboardingCard13_AskAiQuestion(
                 }
             }
         }
-
-        Spacer(modifier = Modifier.height(32.dp))
-
-        Row(
-            modifier = Modifier.fillMaxWidth(),
-            horizontalArrangement = Arrangement.SpaceBetween
-        ) {
-            OnboardingBackButton(onClick = onBack)
-            OnboardingNextButton(
-                text = "Далее",
-                onClick = onNext,
-                modifier = Modifier.weight(0.7f)
-            )
-        }
     }
 }
 
 /**
  * Карточка 14: Ответ AI-агента (детальный просмотр)
+ * БЕЗ кнопок навигации — управление свайпами
  */
 @Composable
 fun OnboardingCard14_AiResponse(
     aiResponse: String?,
-    isLoading: Boolean,
-    onNext: () -> Unit,
-    onBack: () -> Unit
+    isLoading: Boolean
 ) {
     Column(
         modifier = Modifier
@@ -1015,31 +834,15 @@ fun OnboardingCard14_AiResponse(
             color = MaterialTheme.colorScheme.onBackground.copy(alpha = 0.6f),
             textAlign = TextAlign.Center
         )
-
-        Spacer(modifier = Modifier.height(48.dp))
-
-        Row(
-            modifier = Modifier.fillMaxWidth(),
-            horizontalArrangement = Arrangement.SpaceBetween
-        ) {
-            OnboardingBackButton(onClick = onBack)
-            OnboardingNextButton(
-                text = "Далее",
-                onClick = onNext,
-                modifier = Modifier.weight(0.7f)
-            )
-        }
     }
 }
 
 /**
  * Карточка 15: Возможности AI-агентов
+ * БЕЗ кнопок навигации — управление свайпами
  */
 @Composable
-fun OnboardingCard15_AiCapabilities(
-    onNext: () -> Unit,
-    onBack: () -> Unit
-) {
+fun OnboardingCard15_AiCapabilities() {
     Column(
         modifier = Modifier
             .fillMaxSize()
@@ -1085,20 +888,6 @@ fun OnboardingCard15_AiCapabilities(
             title = "Поиск и исследование",
             description = "Быстрый поиск информации и анализ источников"
         )
-
-        Spacer(modifier = Modifier.height(48.dp))
-
-        Row(
-            modifier = Modifier.fillMaxWidth(),
-            horizontalArrangement = Arrangement.SpaceBetween
-        ) {
-            OnboardingBackButton(onClick = onBack)
-            OnboardingNextButton(
-                text = "Далее",
-                onClick = onNext,
-                modifier = Modifier.weight(0.7f)
-            )
-        }
     }
 }
 
@@ -1108,15 +897,20 @@ fun OnboardingCard15_AiCapabilities(
 
 /**
  * Карточка 16: Частота использования
+ * БЕЗ кнопок навигации — управление свайпами
  */
 @Composable
 fun OnboardingCard16_UsageFrequency(
     frequency: String,
-    onFrequencySelected: (String) -> Unit,
-    onNext: () -> Unit,
-    onBack: () -> Unit
+    onFrequencySelected: (String) -> Unit
 ) {
     var selectedFrequency by remember { mutableStateOf(frequency) }
+
+    LaunchedEffect(selectedFrequency) {
+        if (selectedFrequency.isNotBlank()) {
+            onFrequencySelected(selectedFrequency)
+        }
+    }
 
     Column(
         modifier = Modifier
@@ -1149,38 +943,25 @@ fun OnboardingCard16_UsageFrequency(
             )
             Spacer(modifier = Modifier.height(12.dp))
         }
-
-        Spacer(modifier = Modifier.height(32.dp))
-
-        Row(
-            modifier = Modifier.fillMaxWidth(),
-            horizontalArrangement = Arrangement.SpaceBetween
-        ) {
-            OnboardingBackButton(onClick = onBack)
-            OnboardingNextButton(
-                text = "Далее",
-                enabled = selectedFrequency.isNotBlank(),
-                onClick = {
-                    onFrequencySelected(selectedFrequency)
-                    onNext()
-                },
-                modifier = Modifier.weight(0.7f)
-            )
-        }
     }
 }
 
 /**
  * Карточка 17: Время суток использования
+ * БЕЗ кнопок навигации — управление свайпами
  */
 @Composable
 fun OnboardingCard17_UsageTimeOfDay(
     timeOfDay: String,
-    onTimeSelected: (String) -> Unit,
-    onNext: () -> Unit,
-    onBack: () -> Unit
+    onTimeSelected: (String) -> Unit
 ) {
     var selectedTime by remember { mutableStateOf(timeOfDay) }
+
+    LaunchedEffect(selectedTime) {
+        if (selectedTime.isNotBlank()) {
+            onTimeSelected(selectedTime)
+        }
+    }
 
     Column(
         modifier = Modifier
@@ -1212,41 +993,22 @@ fun OnboardingCard17_UsageTimeOfDay(
             )
             Spacer(modifier = Modifier.height(12.dp))
         }
-
-        Spacer(modifier = Modifier.height(32.dp))
-
-        Row(
-            modifier = Modifier.fillMaxWidth(),
-            horizontalArrangement = Arrangement.SpaceBetween
-        ) {
-            OnboardingBackButton(onClick = onBack)
-            OnboardingNextButton(
-                text = "Далее",
-                enabled = selectedTime.isNotBlank(),
-                onClick = {
-                    onTimeSelected(selectedTime)
-                    onNext()
-                },
-                modifier = Modifier.weight(0.7f)
-            )
-        }
     }
 }
 
 /**
  * Карточка 18: Анализ нагрузки
+ * БЕЗ кнопок навигации — управление свайпами
  */
 @Composable
 fun OnboardingCard18_LoadAnalysis(
     frequency: String,
-    timeOfDay: String,
-    onNext: () -> Unit,
-    onBack: () -> Unit
+    timeOfDay: String
 ) {
-    var progress by remember { mutableStateOf(0f) }
+    var progress by remember { mutableFloatStateOf(0f) }
 
     LaunchedEffect(Unit) {
-        kotlinx.coroutines.delay(500)
+        delay(500.milliseconds)
         progress = 1f
     }
 
@@ -1309,20 +1071,6 @@ fun OnboardingCard18_LoadAnalysis(
                 )
             }
         }
-
-        Spacer(modifier = Modifier.height(48.dp))
-
-        Row(
-            modifier = Modifier.fillMaxWidth(),
-            horizontalArrangement = Arrangement.SpaceBetween
-        ) {
-            OnboardingBackButton(onClick = onBack)
-            OnboardingNextButton(
-                text = "Далее",
-                onClick = onNext,
-                modifier = Modifier.weight(0.7f)
-            )
-        }
     }
 }
 
@@ -1332,12 +1080,11 @@ fun OnboardingCard18_LoadAnalysis(
 
 /**
  * Карточка 19: Резюме прогресса
+ * БЕЗ кнопок навигации — управление свайпами
  */
 @Composable
 fun OnboardingCard19_ProgressSummary(
-    onboardingData: OnboardingData,
-    onNext: () -> Unit,
-    onBack: () -> Unit
+    onboardingData: OnboardingData
 ) {
     val timeSaved = onboardingData.currentTaskDurationHours - onboardingData.estimatedAiDurationHours
 
@@ -1416,20 +1163,6 @@ fun OnboardingCard19_ProgressSummary(
                 )
             }
         }
-
-        Spacer(modifier = Modifier.height(48.dp))
-
-        Row(
-            modifier = Modifier.fillMaxWidth(),
-            horizontalArrangement = Arrangement.SpaceBetween
-        ) {
-            OnboardingBackButton(onClick = onBack)
-            OnboardingNextButton(
-                text = "Выбрать план",
-                onClick = onNext,
-                modifier = Modifier.weight(0.7f)
-            )
-        }
     }
 }
 
@@ -1439,13 +1172,14 @@ fun OnboardingCard19_ProgressSummary(
 
 /**
  * Карточка 20: Выбор плана (демо, месячная, годовая подписка)
+ * БЕЗ кнопки "Назад" — управление свайпами
+ * Кнопка "Продолжить" ОСТАВЛЕНА — это не навигация, а завершение онбординга
  */
 @Composable
 fun OnboardingCard20_PlanSelection(
     selectedPlan: String,
     onPlanSelected: (String) -> Unit,
-    onComplete: () -> Unit,
-    onBack: () -> Unit
+    onComplete: () -> Unit
 ) {
     var currentPlan by remember { mutableStateOf(selectedPlan) }
 
@@ -1517,19 +1251,28 @@ fun OnboardingCard20_PlanSelection(
 
         Spacer(modifier = Modifier.height(32.dp))
 
-        Row(
-            modifier = Modifier.fillMaxWidth(),
-            horizontalArrangement = Arrangement.SpaceBetween
+        // КНОПКА "ПРОДОЛЖИТЬ" ОСТАВЛЕНА — это не навигация между карточками,
+        // а завершение онбординга и переход к оплате/регистрации
+        Button(
+            onClick = {
+                onPlanSelected(currentPlan)
+                onComplete()
+            },
+            enabled = currentPlan.isNotBlank(),
+            modifier = Modifier
+                .fillMaxWidth()
+                .height(56.dp),
+            shape = RoundedCornerShape(12.dp),
+            colors = ButtonDefaults.buttonColors(
+                containerColor = PrimaryLight,
+                contentColor = Color.White,
+                disabledContainerColor = DividerLight
+            )
         ) {
-            OnboardingBackButton(onClick = onBack)
-            OnboardingNextButton(
+            Text(
                 text = "Продолжить",
-                enabled = currentPlan.isNotBlank(),
-                onClick = {
-                    onPlanSelected(currentPlan)
-                    onComplete()
-                },
-                modifier = Modifier.weight(0.7f)
+                style = MaterialTheme.typography.titleMedium,
+                fontWeight = FontWeight.SemiBold
             )
         }
     }
@@ -1607,11 +1350,7 @@ private fun PurposeOption(
         colors = CardDefaults.cardColors(
             containerColor = if (selected) PrimaryLight.copy(alpha = 0.1f) else CardBackground
         ),
-        border = if (selected) {
-            CardDefaults.outlinedCardBorder().copy(width = 2.dp, color = PrimaryLight)
-        } else {
-            null
-        }
+        border = if (selected) BorderStroke(width = 2.dp, color = PrimaryLight) else null
     ) {
         Row(
             modifier = Modifier
@@ -1650,11 +1389,7 @@ private fun SkillCheckbox(
         colors = CardDefaults.cardColors(
             containerColor = if (checked) SecondaryLight.copy(alpha = 0.1f) else CardBackground
         ),
-        border = if (checked) {
-            CardDefaults.outlinedCardBorder().copy(width = 2.dp, color = SecondaryLight)
-        } else {
-            null
-        }
+        border = if (checked) BorderStroke(width = 2.dp, color = SecondaryLight) else null
     ) {
         Row(
             modifier = Modifier
@@ -1810,11 +1545,7 @@ private fun PlanCard(
         colors = CardDefaults.cardColors(
             containerColor = if (selected) PrimaryLight.copy(alpha = 0.05f) else CardBackground
         ),
-        border = if (selected) {
-            CardDefaults.outlinedCardBorder().copy(width = 2.dp, color = PrimaryLight)
-        } else {
-            null
-        },
+        border = if (selected) BorderStroke(width = 2.dp, color = PrimaryLight) else null,
         elevation = CardDefaults.cardElevation(defaultElevation = if (selected) 4.dp else 1.dp)
     ) {
         Column(

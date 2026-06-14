@@ -21,8 +21,20 @@ import com.example.myapplication.ui.theme.MyApplicationTheme
 import com.example.myapplication.ui.onboarding.OnboardingScreen
 import com.example.myapplication.viewmodel.MainViewModel
 import com.example.myapplication.viewmodel.OnboardingViewModel
+import android.content.Context
+import androidx.core.content.edit
 
 class MainActivity : ComponentActivity() {
+    private val sharedPreferences by lazy {
+        getSharedPreferences("aigen_prefs", Context.MODE_PRIVATE)
+    }
+
+    private val isFirstLaunch: Boolean
+        get() = sharedPreferences.getBoolean("is_first_launch", true)
+
+    private fun markOnboardingCompleted() {
+        sharedPreferences.edit { putBoolean("is_first_launch", false) }
+    }
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         setContent {
@@ -40,9 +52,10 @@ class MainActivity : ComponentActivity() {
 
                     // Определение начального экрана
                     val startDestination = when {
-                        currentUser == null -> "login" // Пользователь не авторизован
-                        !onboardingCompleted -> "onboarding" // Онбординг не пройден
-                        else -> "home" // Все готово, показываем главный экран
+                        isFirstLaunch -> "onboarding"  // ПЕРВЫЙ ЗАПУСК → Онбординг
+                        currentUser == null -> "login"  // Не авторизован → Логин
+                        !onboardingCompleted -> "onboarding" // Онбординг не пройден → Онбординг
+                        else -> "home"                   // Все готово → Главная
                     }
 
                     NavHost(
@@ -88,6 +101,7 @@ class MainActivity : ComponentActivity() {
                             OnboardingScreen(
                                 mainViewModel = mainViewModel,
                                 onOnboardingComplete = { selectedPlan ->
+                                    markOnboardingCompleted() // Отмечаем, что онбординг пройден
                                     when (selectedPlan) {
                                         "demo" -> {
                                             // Демо-версия: переход на главный экран

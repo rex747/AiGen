@@ -1,6 +1,5 @@
 package com.example.myapplication.ui.onboarding
 
-import androidx.compose.animation.*
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.shape.CircleShape
@@ -64,8 +63,8 @@ fun OnboardingProgressIndicator(
 @Composable
 fun OnboardingCardTitle(
     title: String,
-    subtitle: String? = null,
-    modifier: Modifier = Modifier
+    modifier: Modifier = Modifier,
+    subtitle: String? = null
 ) {
     Column(
         modifier = modifier.fillMaxWidth(),
@@ -110,66 +109,6 @@ fun OnboardingCardContent(
 }
 
 /**
- * Кнопка "Далее" для карточек онбординга
- */
-@Composable
-fun OnboardingNextButton(
-    text: String = "Далее",
-    enabled: Boolean = true,
-    isLoading: Boolean = false,
-    onClick: () -> Unit,
-    modifier: Modifier = Modifier
-) {
-    Button(
-        onClick = onClick,
-        enabled = enabled && !isLoading,
-        modifier = modifier
-            .fillMaxWidth()
-            .height(56.dp),
-        shape = RoundedCornerShape(12.dp),
-        colors = ButtonDefaults.buttonColors(
-            containerColor = PrimaryLight,
-            contentColor = Color.White,
-            disabledContainerColor = DividerLight
-        )
-    ) {
-        if (isLoading) {
-            CircularProgressIndicator(
-                modifier = Modifier.size(24.dp),
-                color = Color.White,
-                strokeWidth = 2.dp
-            )
-        } else {
-            Text(
-                text = text,
-                style = MaterialTheme.typography.titleMedium,
-                fontWeight = FontWeight.SemiBold
-            )
-        }
-    }
-}
-
-/**
- * Кнопка "Назад" для карточек онбординга
- */
-@Composable
-fun OnboardingBackButton(
-    onClick: () -> Unit,
-    modifier: Modifier = Modifier
-) {
-    TextButton(
-        onClick = onClick,
-        modifier = modifier.height(48.dp)
-    ) {
-        Text(
-            text = "Назад",
-            style = MaterialTheme.typography.titleMedium,
-            color = MaterialTheme.colorScheme.onBackground.copy(alpha = 0.6f)
-        )
-    }
-}
-
-/**
  * Карточка с отзывом (для карточек 10-12)
  */
 @Composable
@@ -194,7 +133,6 @@ fun ReviewCard(
                 .fillMaxWidth()
                 .padding(16.dp)
         ) {
-            // Рейтинг (звезды)
             Row(
                 modifier = Modifier.fillMaxWidth(),
                 horizontalArrangement = Arrangement.Start
@@ -216,7 +154,6 @@ fun ReviewCard(
 
             Spacer(modifier = Modifier.height(12.dp))
 
-            // Текст отзыва
             Text(
                 text = reviewText,
                 style = MaterialTheme.typography.bodyMedium,
@@ -226,7 +163,6 @@ fun ReviewCard(
 
             Spacer(modifier = Modifier.height(12.dp))
 
-            // Имя рецензента
             Text(
                 text = reviewerName,
                 style = MaterialTheme.typography.labelLarge,
@@ -258,29 +194,4 @@ fun OnboardingGradientBackground(
             ),
         content = content
     )
-}
-
-/**
- * Анимированный переход между карточками
- */
-@Composable
-fun AnimatedOnboardingCard(
-    cardIndex: Int,
-    modifier: Modifier = Modifier,
-    content: @Composable BoxScope.(Int) -> Unit // ИСПРАВЛЕНО: добавлен параметр Int
-) {
-    AnimatedContent(
-        targetState = cardIndex,
-        transitionSpec = {
-            slideInHorizontally(initialOffsetX = { it }) + fadeIn() togetherWith
-                    slideOutHorizontally(targetOffsetX = { -it }) + fadeOut()
-        },
-        modifier = modifier
-    ) { targetIndex ->
-        Box(
-            modifier = Modifier.fillMaxSize()
-        ) {
-            content(targetIndex) // ИСПРАВЛЕНО: передаём targetIndex в content
-        }
-    }
 }

@@ -47,7 +47,7 @@ private val DarkColorScheme = darkColorScheme(
 
 @Composable
 fun MyApplicationTheme(
-    darkTheme: Boolean = isSystemInDarkTheme(),
+    darkTheme: Boolean = true,
     dynamicColor: Boolean = false, // Отключаем динамические цвета для сохранения стиля Vibeling
     content: @Composable () -> Unit
 ) {
