@@ -56,10 +56,10 @@ class MainActivity : ComponentActivity() {
 
                     // Определение начального экрана
                     val startDestination = when {
-                        isFirstLaunch -> "onboarding"  // ПЕРВЫЙ ЗАПУСК → Онбординг
-                        currentUser == null -> "login"  // Не авторизован → Логин
+                        isFirstLaunch -> "onboarding"        // ПЕРВЫЙ ЗАПУСК → Онбординг
+                        currentUser == null -> "login"       // Не авторизован → Логин
                         !onboardingCompleted -> "onboarding" // Онбординг не пройден → Онбординг
-                        else -> "home"                   // Все готово → Главная
+                        else -> "profile"                    // Все готово → ЛИЧНЫЙ КАБИНЕТ
                     }
 
                     NavHost(
@@ -72,15 +72,9 @@ class MainActivity : ComponentActivity() {
                                 viewModel = mainViewModel,
                                 onNavigateToRegister = { navController.navigate("register") },
                                 onLoginSuccess = {
-                                    // После входа проверяем, пройден ли онбординг
-                                    if (!onboardingCompleted) {
-                                        navController.navigate("onboarding") {
-                                            popUpTo("login") { inclusive = true }
-                                        }
-                                    } else {
-                                        navController.navigate("home") {
-                                            popUpTo("login") { inclusive = true }
-                                        }
+                                    // После входа всегда переходим в личный кабинет
+                                    navController.navigate("profile") {
+                                        popUpTo("login") { inclusive = true }
                                     }
                                 }
                             )
@@ -92,31 +86,30 @@ class MainActivity : ComponentActivity() {
                                 viewModel = mainViewModel,
                                 onNavigateBack = { navController.popBackStack() },
                                 onRegisterSuccess = {
-                                    // После регистрации сразу показываем онбординг
-                                    navController.navigate("onboarding") {
+                                    // После регистрации переходим в личный кабинет
+                                    navController.navigate("profile") {
                                         popUpTo("register") { inclusive = true }
                                     }
                                 }
                             )
                         }
 
-// Экран онбординга
+                        // Экран онбординга
                         composable("onboarding") {
                             OnboardingScreen(
                                 mainViewModel = mainViewModel,
                                 onOnboardingComplete = { selectedPlan ->
-                                    when (selectedPlan) {
-                                        "demo" -> {
-                                            // Демо-версия: переход на экран регистрации для активации демо
-                                            navController.navigate("register_for_demo") {
-                                                popUpTo("onboarding") { inclusive = true }
-                                            }
+                                    markOnboardingCompleted() // Отмечаем, что онбординг пройден
+                                    // После выбора плана (demo/monthly/yearly) переходим в личный кабинет.
+                                    // Если пользователь ещё не авторизован — сначала на экран входа,
+                                    // иначе — сразу в профиль.
+                                    if (currentUser == null) {
+                                        navController.navigate("login") {
+                                            popUpTo("onboarding") { inclusive = true }
                                         }
-                                        "monthly", "yearly" -> {
-                                            // Платная подписка: переход на экран регистрации и оплаты
-                                            navController.navigate("register_and_payment/$selectedPlan") {
-                                                popUpTo("onboarding") { inclusive = true }
-                                            }
+                                    } else {
+                                        navController.navigate("profile") {
+                                            popUpTo("onboarding") { inclusive = true }
                                         }
                                     }
                                 }
