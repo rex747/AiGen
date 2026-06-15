@@ -1740,7 +1740,8 @@ private fun PlanCard(
                     Text(
                         text = title,
                         style = MaterialTheme.typography.titleLarge,
-                        fontWeight = FontWeight.Bold
+                        fontWeight = FontWeight.Bold,
+                        color = Color.Black
                     )
                     Spacer(modifier = Modifier.height(8.dp))
                     Row(
@@ -1757,7 +1758,7 @@ private fun PlanCard(
                             Text(
                                 text = period,
                                 style = MaterialTheme.typography.bodyMedium,
-                                color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.6f),
+                                color = Color.Black,
                                 modifier = Modifier.padding(bottom = 4.dp)
                             )
                         }
@@ -1796,7 +1797,7 @@ private fun PlanCard(
                     Text(
                         text = feature,
                         style = MaterialTheme.typography.bodyMedium,
-                        color = MaterialTheme.colorScheme.onSurface
+                        color = Color.Black
                     )
                 }
             }
