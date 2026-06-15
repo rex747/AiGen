@@ -29,6 +29,9 @@ import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Star
 import androidx.compose.material3.Icon
+import androidx.compose.animation.core.animateFloatAsState
+import androidx.compose.animation.core.tween
+import androidx.compose.animation.core.LinearEasing
 
 // ============================================================================
 // КАРТОЧКИ 1-3: КРАТКИЙ РАССКАЗ О ПРИЛОЖЕНИИ
@@ -1149,11 +1152,23 @@ fun OnboardingCard18_LoadAnalysis(
     frequency: String,
     timeOfDay: String
 ) {
-    var progress by remember { mutableFloatStateOf(0f) }
+    // Флаг запуска анимации
+    var animationStarted by remember { mutableStateOf(false) }
 
+    // Плавная анимация прогресса от 0 до 1 (0% до 100%)
+    val progress by animateFloatAsState(
+        targetValue = if (animationStarted) 1f else 0f,
+        animationSpec = tween(
+            durationMillis = 2000,  // Длительность анимации: 2 секунды
+            easing = LinearEasing   // Линейная анимация (равномерное заполнение)
+        ),
+        label = "load_analysis_progress"
+    )
+
+    // Запуск анимации после небольшой задержки
     LaunchedEffect(Unit) {
         delay(500.milliseconds)
-        progress = 1f
+        animationStarted = true
     }
 
     Column(
@@ -1173,8 +1188,9 @@ fun OnboardingCard18_LoadAnalysis(
         CircularProgressIndicator(
             progress = { progress },
             modifier = Modifier.size(120.dp),
-            color = PrimaryLight,
-            strokeWidth = 8.dp
+            color = SuccessLight,  // ← ИЗМЕНЕНО: зеленый цвет индикатора
+            strokeWidth = 8.dp,
+            trackColor = DividerLight  // ← ДОБАВЛЕНО: цвет трека (фон индикатора)
         )
 
         Spacer(modifier = Modifier.height(24.dp))
@@ -1183,7 +1199,7 @@ fun OnboardingCard18_LoadAnalysis(
             text = "${(progress * 100).toInt()}%",
             style = MaterialTheme.typography.headlineMedium,
             fontWeight = FontWeight.Bold,
-            color = PrimaryLight
+            color = SuccessLight  // ← ИЗМЕНЕНО: зеленый цвет текста
         )
 
         Spacer(modifier = Modifier.height(32.dp))
@@ -1191,7 +1207,7 @@ fun OnboardingCard18_LoadAnalysis(
         Card(
             modifier = Modifier.fillMaxWidth(),
             colors = CardDefaults.cardColors(
-                containerColor = PrimaryLight.copy(alpha = 0.1f)
+                containerColor = SuccessLight.copy(alpha = 0.1f)
             )
         ) {
             Column(
@@ -1241,9 +1257,21 @@ fun OnboardingCard19_ProgressSummary(
     ) {
         Spacer(modifier = Modifier.height(32.dp))
 
-        OnboardingCardTitle(
-            title = "Ваш персональный план",
-            subtitle = "Прогресс при использовании AI-агентов"
+        Text(
+            text = "Ваш персональный план",
+            style = MaterialTheme.typography.headlineMedium,
+            fontWeight = FontWeight.Bold,
+            color = SuccessLight,  // ← ЗЕЛЕНЫЙ ЦВЕТ (#10B981)
+            textAlign = TextAlign.Center,
+            modifier = Modifier.fillMaxWidth()
+        )
+        Spacer(modifier = Modifier.height(8.dp))
+        Text(
+            text = "Прогресс при использовании AI-агентов",
+            style = MaterialTheme.typography.bodyLarge,
+            color = SuccessLight,  // ← ЗЕЛЕНЫЙ ЦВЕТ (#10B981)
+            textAlign = TextAlign.Center,
+            modifier = Modifier.fillMaxWidth()
         )
 
         Spacer(modifier = Modifier.height(32.dp))
@@ -1624,13 +1652,14 @@ private fun CapabilityItem(
                 Text(
                     text = title,
                     style = MaterialTheme.typography.titleMedium,
-                    fontWeight = FontWeight.SemiBold
+                    fontWeight = FontWeight.SemiBold,
+                    color = Color.Black  // ← ИЗМЕНЕНО: цвет заголовка на черный
                 )
                 Spacer(modifier = Modifier.height(4.dp))
                 Text(
                     text = description,
                     style = MaterialTheme.typography.bodyMedium,
-                    color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.7f)
+                    color = Color.Black  // ← ИЗМЕНЕНО: цвет описания на черный
                 )
             }
         }
@@ -1662,13 +1691,14 @@ private fun SummaryCard(
                 Text(
                     text = title,
                     style = MaterialTheme.typography.labelMedium,
-                    color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.6f)
+                    color = Color.Black  // ← ИЗМЕНЕНО: цвет заголовка блока на черный
                 )
                 Spacer(modifier = Modifier.height(4.dp))
                 Text(
                     text = value,
                     style = MaterialTheme.typography.bodyLarge,
-                    fontWeight = FontWeight.SemiBold
+                    fontWeight = FontWeight.SemiBold,
+                    color = Color.Black  // ← ДОБАВЛЕНО: цвет значения на черный
                 )
             }
         }
