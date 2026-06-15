@@ -138,7 +138,10 @@ fun OnboardingScreen(
                     12 -> OnboardingCard13_AskAiQuestion(
                         aiResponse = aiResponse,
                         isLoading = isLoading,
-                        onAskQuestion = { question -> viewModel.askAiAgent(question) }
+                        onAskQuestion = { question ->
+                            val token = mainViewModel.token
+                            viewModel.askAiAgent(token, question)
+                        }
                     )
                     13 -> OnboardingCard14_AiResponse(
                         aiResponse = aiResponse,

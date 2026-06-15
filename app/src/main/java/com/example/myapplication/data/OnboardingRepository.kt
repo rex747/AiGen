@@ -60,4 +60,26 @@ class OnboardingRepository {
             Result.failure(e)
         }
     }
+    /**
+     * Бесплатный вопрос к AI во время онбординга
+     */
+    suspend fun askAi(token: String, question: String): Result<String> {
+        return try {
+            val request = com.example.myapplication.model.AskAiRequest(question)
+            val response = api.askAi("Bearer $token", request)
+            if (response.isSuccessful && response.body() != null) {
+                val body = response.body()!!
+                if (body.success) {
+                    Result.success(body.answer)
+                } else {
+                    Result.failure(Exception(body.error ?: "Failed to get AI response"))
+                }
+            } else {
+                val error = response.errorBody()?.string() ?: "Failed to ask AI"
+                Result.failure(Exception(error))
+            }
+        } catch (e: Exception) {
+            Result.failure(e)
+        }
+    }
 }

@@ -164,6 +164,33 @@ class OnboardingViewModel(application: Application) : AndroidViewModel(applicati
     }
 
     /**
+     * Отправка вопроса AI-агенту (для карточек 13-15)
+     * Используется бесплатный вопрос во время онбординга
+     */
+    fun askAiAgent(token: String, question: String) {
+        viewModelScope.launch {
+            _isLoading.value = true
+            _aiResponse.value = null
+            _error.value = null
+
+            val result = withContext(Dispatchers.IO) {
+                repository.askAi(token, question)
+            }
+
+            result.onSuccess { answer ->
+                _aiResponse.value = answer
+            }
+            result.onFailure { e ->
+                _error.value = e.message ?: "Ошибка получения ответа от AI"
+                // Fallback на случай ошибки
+                _aiResponse.value = "Извините, не удалось получить ответ. Пожалуйста, попробуйте позже."
+            }
+
+            _isLoading.value = false
+        }
+    }
+
+    /**
      * Сброс состояния онбординга
      */
     fun resetOnboarding() {

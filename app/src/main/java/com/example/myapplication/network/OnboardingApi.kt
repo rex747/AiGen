@@ -5,6 +5,8 @@ import com.example.myapplication.model.OnboardingResponse
 import com.example.myapplication.model.OnboardingStatusResponse
 import retrofit2.Response
 import retrofit2.http.*
+import com.example.myapplication.model.AskAiRequest
+import com.example.myapplication.model.AskAiResponse
 
 /**
  * API интерфейс для работы с онбордингом
@@ -37,6 +39,19 @@ interface OnboardingApi {
     suspend fun getOnboardingStatus(
         @Header("Authorization") auth: String
     ): Response<OnboardingStatusResponse>
+
+    /**
+     * Бесплатный вопрос к AI-агенту во время онбординга
+     */
+    @Headers(
+        "Cache-Control: no-cache, no-store, must-revalidate",
+        "Pragma: no-cache"
+    )
+    @POST("/onboarding/ask-ai")
+    suspend fun askAi(
+        @Header("Authorization") auth: String,
+        @Body request: AskAiRequest
+    ): Response<AskAiResponse>
 
     /**
      * Активация демо-версии (3 дня бесплатно)

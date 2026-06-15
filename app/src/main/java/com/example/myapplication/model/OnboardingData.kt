@@ -44,3 +44,18 @@ data class OnboardingStatusResponse(
     @SerializedName("demo_expires_at") val demoExpiresAt: Long?,
     @SerializedName("subscription_active") val subscriptionActive: Boolean
 )
+/**
+ * Запрос для бесплатного вопроса к AI во время онбординга
+ */
+data class AskAiRequest(
+    @SerializedName("question") val question: String
+)
+
+/**
+ * Ответ от AI на вопрос во время онбординга
+ */
+data class AskAiResponse(
+    @SerializedName("success") val success: Boolean,
+    @SerializedName("answer") val answer: String,
+    @SerializedName("error") val error: String? = null
+)
