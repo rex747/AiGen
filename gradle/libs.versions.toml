@@ -11,6 +11,7 @@ composeBom = "2026.04.01"
 compose-compiler = "1.5.15"
 ui = "1.11.1"
 foundation = "1.11.2"
+billing = "1.1.0"
 
 
 [libraries]
@@ -30,6 +31,7 @@ androidx-compose-ui-test-junit4 = { group = "androidx.compose.ui", name = "ui-te
 androidx-compose-material3 = { group = "androidx.compose.material3", name = "material3" }
 androidx-ui = { group = "androidx.compose.ui", name = "ui", version.ref = "ui" }
 androidx-compose-foundation = { group = "androidx.compose.foundation", name = "foundation", version.ref = "foundation" }
+billing = { group = "com.google.androidbrowserhelper", name = "billing", version.ref = "billing" }
 
 
 [plugins]

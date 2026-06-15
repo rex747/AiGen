@@ -23,10 +23,14 @@ import com.example.myapplication.viewmodel.MainViewModel
 import com.example.myapplication.viewmodel.OnboardingViewModel
 import android.content.Context
 import androidx.core.content.edit
+import com.example.myapplication.billing.BillingManager
 
 class MainActivity : ComponentActivity() {
     private val sharedPreferences by lazy {
         getSharedPreferences("aigen_prefs", Context.MODE_PRIVATE)
+    }
+    private val billingManager by lazy {
+        BillingManager(this).also { it.startConnection() }
     }
 
     private val isFirstLaunch: Boolean
@@ -142,6 +146,7 @@ class MainActivity : ComponentActivity() {
                             RegisterAndPaymentScreen(
                                 plan = plan,
                                 mainViewModel = mainViewModel,
+                                billingManager = billingManager,
                                 onPaymentSuccess = {
                                     markOnboardingCompleted()
                                     navController.navigate("home") {

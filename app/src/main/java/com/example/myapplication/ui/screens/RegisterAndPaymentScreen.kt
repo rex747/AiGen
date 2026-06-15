@@ -1,19 +1,21 @@
 package com.example.myapplication.ui.screens
 
+import android.app.Activity
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
+import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.font.FontWeight
-import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.text.input.KeyboardType
-import androidx.compose.foundation.text.KeyboardOptions
+import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.unit.dp
 import com.example.myapplication.ui.theme.*
 import com.example.myapplication.viewmodel.MainViewModel
+import com.example.myapplication.billing.BillingManager
 import android.widget.Toast
 import androidx.compose.ui.platform.LocalContext
 
@@ -25,6 +27,7 @@ import androidx.compose.ui.platform.LocalContext
 fun RegisterAndPaymentScreen(
     plan: String,
     mainViewModel: MainViewModel,
+    billingManager: BillingManager,
     onPaymentSuccess: () -> Unit,
     onBack: () -> Unit
 ) {
@@ -59,30 +62,68 @@ fun RegisterAndPaymentScreen(
     var cardExpiry by remember { mutableStateOf("") }
     var cardCvv by remember { mutableStateOf("") }
     var isProcessing by remember { mutableStateOf(false) }
+    var paymentInitiated by remember { mutableStateOf(false) }
 
     val context = LocalContext.current
+    // ← ИСПРАВЛЕНО: приводим к Activity?, а не ComponentActivity?
+    val activity: Activity? = context as? Activity
 
-    // После регистрации - сохраняем платежные данные и оформляем подписку
+    // Наблюдаем за результатом платежа от BillingManager
+    val purchaseResult by billingManager.purchaseResult.collectAsState()
+
+    // После регистрации - инициируем платеж через Google Pay
     LaunchedEffect(currentUser) {
-        if (currentUser != null && isProcessing) {
-            isProcessing = false
-            val token = currentUser?.token ?: ""
+        if (currentUser != null && isProcessing && !paymentInitiated) {
+            paymentInitiated = true
 
-            // Формируем card_token и card_mask (в реальности это делает платежный шлюз)
-            val cardToken = "tok_test_${System.currentTimeMillis()}"
-            val cardMask = "•••• ${cardNumber.takeLast(4)}"
+            // ← ИСПРАВЛЕНО: используем activity?.let для безопасного вызова
+            activity?.let {
+                billingManager.initiatePayment(it, plan)
+            } ?: run {
+                Toast.makeText(context, "Ошибка: Activity недоступна", Toast.LENGTH_LONG).show()
+                isProcessing = false
+                paymentInitiated = false
+            }
+        }
+    }
 
-            // Сохраняем платежные данные в профиле
-            mainViewModel.updateProfile(null, cardToken, cardMask)
+    // ← ИСПРАВЛЕНО: один LaunchedEffect для обработки результата
+    LaunchedEffect(purchaseResult) {
+        when (val result = purchaseResult) {
+            is BillingManager.PurchaseResult.Success -> {
+                // ← ИСПРАВЛЕНО: result.purchaseToken теперь существует
+                val purchaseToken = result.purchaseToken
+                val token = currentUser?.token ?: ""
+                val cardMask = "•••• ${cardNumber.takeLast(4).ifBlank { "Google Pay" }}"
 
-            // Оформляем подписку
-            mainViewModel.subscribe(plan) { success, message ->
-                if (success) {
-                    Toast.makeText(context, "Подписка оформлена успешно!", Toast.LENGTH_LONG).show()
-                    onPaymentSuccess()
-                } else {
-                    Toast.makeText(context, "Ошибка: $message", Toast.LENGTH_LONG).show()
+                mainViewModel.updateProfile(token, purchaseToken, cardMask)
+                mainViewModel.subscribe(plan) { success, message ->
+                    if (success) {
+                        Toast.makeText(context, "Подписка оформлена успешно!", Toast.LENGTH_LONG).show()
+                        onPaymentSuccess()
+                    } else {
+                        Toast.makeText(context, "Ошибка активации подписки: $message", Toast.LENGTH_LONG).show()
+                    }
                 }
+            }
+            is BillingManager.PurchaseResult.Error -> {
+                // ← ИСПРАВЛЕНО: result.message теперь существует
+                val error = result.message
+                Toast.makeText(context, "Ошибка платежа: $error", Toast.LENGTH_LONG).show()
+                isProcessing = false
+                paymentInitiated = false
+            }
+            is BillingManager.PurchaseResult.Cancelled -> {
+                // ← ИСПРАВЛЕНО: Cancelled теперь существует
+                Toast.makeText(context, "Платеж отменен", Toast.LENGTH_LONG).show()
+                isProcessing = false
+                paymentInitiated = false
+            }
+            is BillingManager.PurchaseResult.Pending -> {
+                // Платеж в процессе обработки — ничего не делаем
+            }
+            null -> {
+                // Результат ещё не получен — ничего не делаем
             }
         }
     }
@@ -170,7 +211,7 @@ fun RegisterAndPaymentScreen(
 
         Spacer(modifier = Modifier.height(32.dp))
 
-        // Форма платежных данных
+        // ← ИСПРАВЛЕНО: Форма платежных данных восстановлена
         Text(
             text = "Платежные данные",
             style = MaterialTheme.typography.titleMedium,
@@ -180,10 +221,10 @@ fun RegisterAndPaymentScreen(
 
         Spacer(modifier = Modifier.height(16.dp))
 
+        // ← ИСПРАВЛЕНО: Поле ввода номера карты с числовой клавиатурой
         OutlinedTextField(
             value = cardNumber,
             onValueChange = {
-                // Разрешаем только цифры и ограничиваем длину до 16 символов
                 if (it.all { c -> c.isDigit() } && it.length <= 16) {
                     cardNumber = it
                 }
@@ -191,6 +232,7 @@ fun RegisterAndPaymentScreen(
             label = { Text("Номер карты") },
             placeholder = { Text("1234 5678 9012 3456") },
             keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
+            singleLine = true,
             modifier = Modifier.fillMaxWidth()
         )
 
@@ -200,10 +242,10 @@ fun RegisterAndPaymentScreen(
             modifier = Modifier.fillMaxWidth(),
             horizontalArrangement = Arrangement.spacedBy(16.dp)
         ) {
+            // ← ИСПРАВЛЕНО: Поле ввода срока действия карты
             OutlinedTextField(
                 value = cardExpiry,
                 onValueChange = {
-                    // Формат MM/YY
                     if (it.length <= 5) {
                         cardExpiry = it
                     }
@@ -211,22 +253,51 @@ fun RegisterAndPaymentScreen(
                 label = { Text("MM/ГГ") },
                 placeholder = { Text("12/26") },
                 keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
+                singleLine = true,
                 modifier = Modifier.weight(1f)
             )
 
+            // ← ИСПРАВЛЕНО: Поле ввода CVV
             OutlinedTextField(
                 value = cardCvv,
                 onValueChange = {
-                    // Разрешаем только цифры и ограничиваем длину до 3 символов
                     if (it.all { c -> c.isDigit() } && it.length <= 3) {
                         cardCvv = it
                     }
                 },
                 label = { Text("CVV") },
                 placeholder = { Text("123") },
-                keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
+                keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.NumberPassword),
+                singleLine = true,
                 modifier = Modifier.weight(1f)
             )
+        }
+
+        Spacer(modifier = Modifier.height(24.dp))
+
+        // Информация о платеже через Google Pay
+        Card(
+            modifier = Modifier.fillMaxWidth(),
+            colors = CardDefaults.cardColors(containerColor = PrimaryLight.copy(alpha = 0.1f))
+        ) {
+            Column(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(16.dp)
+            ) {
+                Text(
+                    text = "💳 Оплата через Google Pay",
+                    style = MaterialTheme.typography.titleMedium,
+                    fontWeight = FontWeight.Bold,
+                    color = PrimaryLight
+                )
+                Spacer(modifier = Modifier.height(8.dp))
+                Text(
+                    text = "На этапе разработки используются тестовые карты Google Pay. После нажатия кнопки \"Зарегистрироваться и оплатить\" откроется окно Google Pay для завершения платежа.",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.7f)
+                )
+            }
         }
 
         if (authError != null) {
@@ -239,6 +310,7 @@ fun RegisterAndPaymentScreen(
 
         Spacer(modifier = Modifier.height(32.dp))
 
+        // ← ИСПРАВЛЕНО: Кнопка активна только когда все поля заполнены
         Button(
             onClick = {
                 isProcessing = true
@@ -248,7 +320,7 @@ fun RegisterAndPaymentScreen(
                     email.isNotBlank() &&
                     password.isNotBlank() &&
                     cardNumber.length == 16 &&
-                    cardExpiry.length == 5 &&
+                    cardExpiry.length >= 4 &&
                     cardCvv.length == 3,
             modifier = Modifier
                 .fillMaxWidth()
@@ -276,19 +348,12 @@ fun RegisterAndPaymentScreen(
         }
 
         Spacer(modifier = Modifier.height(24.dp))
-
-        Text(
-            text = "💡 На этапе разработки используются тестовые карты Google Pay. Оплата обрабатывается через Google Play. Вы можете отменить подписку в любое время.",
-            style = MaterialTheme.typography.bodySmall,
-            color = MaterialTheme.colorScheme.onBackground.copy(alpha = 0.6f),
-            textAlign = androidx.compose.ui.text.style.TextAlign.Center
-        )
     }
 }
 
 private data class RegisterPlanDetails(
     val name: String,
-    val priceDisplay: String,    // ← Переименовано: для отображения в UI
+    val priceDisplay: String,
     val period: String,
-    val priceAmount: Double      // ← Переименовано: для финансовых расчетов
+    val priceAmount: Double
 )
