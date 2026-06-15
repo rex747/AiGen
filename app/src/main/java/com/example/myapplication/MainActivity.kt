@@ -99,17 +99,25 @@ class MainActivity : ComponentActivity() {
                             OnboardingScreen(
                                 mainViewModel = mainViewModel,
                                 onOnboardingComplete = { selectedPlan ->
-                                    markOnboardingCompleted() // Отмечаем, что онбординг пройден
-                                    // После выбора плана (demo/monthly/yearly) переходим в личный кабинет.
-                                    // Если пользователь ещё не авторизован — сначала на экран входа,
-                                    // иначе — сразу в профиль.
-                                    if (currentUser == null) {
-                                        navController.navigate("login") {
-                                            popUpTo("onboarding") { inclusive = true }
+                                    when (selectedPlan) {
+                                        "monthly", "yearly" -> {
+                                            // Платная подписка: переход на экран регистрации и оплаты
+                                            navController.navigate("register_and_payment/$selectedPlan") {
+                                                popUpTo("onboarding") { inclusive = true }
+                                            }
                                         }
-                                    } else {
-                                        navController.navigate("profile") {
-                                            popUpTo("onboarding") { inclusive = true }
+                                        else -> {
+                                            // Демо-версия: если пользователь не авторизован — на экран входа,
+                                            // иначе — сразу в профиль
+                                            if (currentUser == null) {
+                                                navController.navigate("login") {
+                                                    popUpTo("onboarding") { inclusive = true }
+                                                }
+                                            } else {
+                                                navController.navigate("profile") {
+                                                    popUpTo("onboarding") { inclusive = true }
+                                                }
+                                            }
                                         }
                                     }
                                 }
@@ -142,7 +150,7 @@ class MainActivity : ComponentActivity() {
                                 billingManager = billingManager,
                                 onPaymentSuccess = {
                                     markOnboardingCompleted()
-                                    navController.navigate("home") {
+                                    navController.navigate("profile") {
                                         popUpTo("register_and_payment/$plan") { inclusive = true }
                                     }
                                 },
