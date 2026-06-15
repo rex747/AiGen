@@ -29,9 +29,24 @@ fun RegisterAndPaymentScreen(
     onBack: () -> Unit
 ) {
     val planDetails = when (plan) {
-        "monthly" -> PlanDetails("Месячная подписка", "$9.99", "в месяц", 9.99)
-        "yearly" -> PlanDetails("Годовая подписка", "$110", "в год", 110.0)
-        else -> PlanDetails("Месячная подписка", "$9.99", "в месяц", 9.99)
+        "monthly" -> RegisterPlanDetails(
+            name = "Месячная подписка",
+            priceDisplay = "$9.99",
+            period = "в месяц",
+            priceAmount = 9.99
+        )
+        "yearly" -> RegisterPlanDetails(
+            name = "Годовая подписка",
+            priceDisplay = "$110",
+            period = "в год",
+            priceAmount = 110.0
+        )
+        else -> RegisterPlanDetails(
+            name = "Месячная подписка",
+            priceDisplay = "$9.99",
+            period = "в месяц",
+            priceAmount = 9.99
+        )
     }
 
     val isLoading by mainViewModel.isLoading.collectAsState()
@@ -108,7 +123,7 @@ fun RegisterAndPaymentScreen(
                 Spacer(modifier = Modifier.height(16.dp))
                 Row(verticalAlignment = Alignment.Bottom) {
                     Text(
-                        text = planDetails.price,
+                        text = planDetails.priceDisplay,
                         style = MaterialTheme.typography.displayMedium,
                         fontWeight = FontWeight.Bold,
                         color = PrimaryLight
@@ -247,7 +262,7 @@ fun RegisterAndPaymentScreen(
                 )
             } else {
                 Text(
-                    text = "Зарегистрироваться и оплатить ${planDetails.price}",
+                    text = "Зарегистрироваться и оплатить ${planDetails.priceDisplay}",
                     style = MaterialTheme.typography.titleMedium,
                     fontWeight = FontWeight.SemiBold
                 )
@@ -273,7 +288,7 @@ fun RegisterAndPaymentScreen(
 
 private data class RegisterPlanDetails(
     val name: String,
-    val price: String,
+    val priceDisplay: String,    // ← Переименовано: для отображения в UI
     val period: String,
-    val amount: Double
+    val priceAmount: Double      // ← Переименовано: для финансовых расчетов
 )
