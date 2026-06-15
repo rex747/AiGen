@@ -1437,19 +1437,12 @@ int main()
         });
 
         // =============================================================================
-// POST /onboarding/ask-ai - Бесплатный вопрос к AI во время онбординга
-// =============================================================================
+        // POST /onboarding/ask-ai - Бесплатный вопрос к AI во время онбординга
+        // ПУБЛИЧНЫЙ ЭНДПОИНТ - не требует авторизации (онбординг до регистрации)
+        // =============================================================================
         svr.Post("/onboarding/ask-ai", [&](const httplib::Request& req, httplib::Response& res) {
             try {
-                // Проверка авторизации
-                auto token_opt = extract_bearer(req);
-                if (!token_opt) return json_error(res, 401, "Missing token");
-                auto email_opt = JWT::verify(*token_opt);
-                if (!email_opt) return json_error(res, 401, "Invalid token");
-
-                std::string email = *email_opt;
-
-                // Парсинг JSON
+                // Парсинг JSON (без проверки токена - публичный эндпоинт)
                 auto body = json::parse(req.body, nullptr, false);
                 if (body.is_discarded()) {
                     return json_error(res, 400, "Invalid JSON body");
@@ -1461,16 +1454,44 @@ int main()
 
                 std::string question = body["question"];
 
+                // Проверка длины вопроса (защита от злоупотреблений)
+                if (question.length() > 1000) {
+                    return json_error(res, 400, "Question too long (max 1000 characters)");
+                }
+
+                // IP-адрес для логирования (вместо email)
+                std::string client_ip = req.remote_addr;
+
                 // Системный промпт для онбординга
                 std::string system_prompt = "Ты — AI-ассистент платформы AiGen. "
                     "Помогай пользователям понять возможности платформы во время онбординга. "
                     "Отвечай кратко, дружелюбно и по существу на том языке, на котором задан вопрос.";
 
+                // Rate limiting: не более 5 запросов с одного IP за минуту
+                static std::map<std::string, std::vector<std::chrono::steady_clock::time_point>> ip_request_times;
+                auto now = std::chrono::steady_clock::now();
+                auto& times = ip_request_times[client_ip];
+
+                // Удаляем запросы старше 1 минуты
+                times.erase(
+                    std::remove_if(times.begin(), times.end(),
+                        [&](const auto& t) {
+                            return std::chrono::duration_cast<std::chrono::minutes>(now - t).count() > 1;
+                        }),
+                    times.end()
+                );
+
+                if (times.size() >= 5) {
+                    return json_error(res, 429, "Too many requests. Please try again later.");
+                }
+
+                times.push_back(now);
+
                 // Вызов Mistral API (бесплатный вопрос, без проверки баланса)
                 std::string result = Utils::call_mistral_ai(question, system_prompt);
 
-                // Логирование
-                Utils::log_audit(email, "onboarding-ask-ai", question, result);
+                // Логирование с IP-адресом вместо email
+                Utils::log_audit(client_ip, "onboarding-ask-ai-public", question, result);
 
                 nlohmann::json response;
                 response["success"] = true;

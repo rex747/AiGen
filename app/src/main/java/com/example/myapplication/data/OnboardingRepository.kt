@@ -62,11 +62,12 @@ class OnboardingRepository {
     }
     /**
      * Бесплатный вопрос к AI во время онбординга
+     * ПУБЛИЧНЫЙ ЭНДПОИНТ - не требует авторизации
      */
-    suspend fun askAi(token: String, question: String): Result<String> {
+    suspend fun askAi(question: String): Result<String> {
         return try {
             val request = com.example.myapplication.model.AskAiRequest(question)
-            val response = api.askAi("Bearer $token", request)
+            val response = api.askAi(request)  // ← Без токена
             if (response.isSuccessful && response.body() != null) {
                 val body = response.body()!!
                 if (body.success) {

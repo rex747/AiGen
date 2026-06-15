@@ -42,6 +42,7 @@ interface OnboardingApi {
 
     /**
      * Бесплатный вопрос к AI-агенту во время онбординга
+     * ПУБЛИЧНЫЙ ЭНДПОИНТ - не требует авторизации
      */
     @Headers(
         "Cache-Control: no-cache, no-store, must-revalidate",
@@ -49,7 +50,6 @@ interface OnboardingApi {
     )
     @POST("/onboarding/ask-ai")
     suspend fun askAi(
-        @Header("Authorization") auth: String,
         @Body request: AskAiRequest
     ): Response<AskAiResponse>
 

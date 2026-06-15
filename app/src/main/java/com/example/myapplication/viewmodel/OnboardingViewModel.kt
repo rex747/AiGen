@@ -77,6 +77,33 @@ class OnboardingViewModel(application: Application) : AndroidViewModel(applicati
     }
 
     /**
+     * Отправка вопроса AI-агенту (для карточек 13-15)
+     * ПУБЛИЧНЫЙ ЭНДПОИНТ - не требует авторизации (онбординг до регистрации)
+     */
+    fun askAiAgent(question: String) {
+        viewModelScope.launch {
+            _isLoading.value = true
+            _aiResponse.value = null
+            _error.value = null
+
+            val result = withContext(Dispatchers.IO) {
+                repository.askAi(question)  // ← Без токена
+            }
+
+            result.onSuccess { answer ->
+                _aiResponse.value = answer
+            }
+            result.onFailure { e ->
+                _error.value = e.message ?: "Ошибка получения ответа от AI"
+                // Fallback на случай ошибки
+                _aiResponse.value = "Извините, не удалось получить ответ. Пожалуйста, попробуйте позже."
+            }
+
+            _isLoading.value = false
+        }
+    }
+
+    /**
      * Обновление данных онбординга
      */
     fun updateOnboardingData(update: (OnboardingData) -> OnboardingData) {
@@ -94,30 +121,6 @@ class OnboardingViewModel(application: Application) : AndroidViewModel(applicati
         )
     }
 
-    /**
-     * Отправка вопроса AI-агенту (для карточек 13-15)
-     * Используется базовый агент без навыков
-     */
-    fun askAiAgent(question: String) {
-        viewModelScope.launch {
-            _isLoading.value = true
-            _aiResponse.value = null
-
-            // Имитация ответа от AI-агента
-            // В реальной реализации здесь будет вызов API
-            withContext(Dispatchers.IO) {
-                kotlinx.coroutines.delay(1500.milliseconds) // Имитация задержки сети
-            }
-
-            // Базовый ответ AI-агента
-            _aiResponse.value = "Спасибо за ваш вопрос! Я проанализировал вашу задачу. " +
-                    "Для более точного ответа мне нужно больше информации о вашей сфере деятельности " +
-                    "и конкретных задачах, которые вы хотите автоматизировать. " +
-                    "После завершения онбординга я смогу предоставить персонализированные рекомендации."
-
-            _isLoading.value = false
-        }
-    }
 
     /**
      * Завершение онбординга и сохранение данных на сервере
@@ -163,32 +166,7 @@ class OnboardingViewModel(application: Application) : AndroidViewModel(applicati
         }
     }
 
-    /**
-     * Отправка вопроса AI-агенту (для карточек 13-15)
-     * Используется бесплатный вопрос во время онбординга
-     */
-    fun askAiAgent(token: String, question: String) {
-        viewModelScope.launch {
-            _isLoading.value = true
-            _aiResponse.value = null
-            _error.value = null
 
-            val result = withContext(Dispatchers.IO) {
-                repository.askAi(token, question)
-            }
-
-            result.onSuccess { answer ->
-                _aiResponse.value = answer
-            }
-            result.onFailure { e ->
-                _error.value = e.message ?: "Ошибка получения ответа от AI"
-                // Fallback на случай ошибки
-                _aiResponse.value = "Извините, не удалось получить ответ. Пожалуйста, попробуйте позже."
-            }
-
-            _isLoading.value = false
-        }
-    }
 
     /**
      * Сброс состояния онбординга
