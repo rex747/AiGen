@@ -1436,6 +1436,55 @@ int main()
             }
         });
 
+        // =============================================================================
+// POST /onboarding/ask-ai - Бесплатный вопрос к AI во время онбординга
+// =============================================================================
+        svr.Post("/onboarding/ask-ai", [&](const httplib::Request& req, httplib::Response& res) {
+            try {
+                // Проверка авторизации
+                auto token_opt = extract_bearer(req);
+                if (!token_opt) return json_error(res, 401, "Missing token");
+                auto email_opt = JWT::verify(*token_opt);
+                if (!email_opt) return json_error(res, 401, "Invalid token");
+
+                std::string email = *email_opt;
+
+                // Парсинг JSON
+                auto body = json::parse(req.body, nullptr, false);
+                if (body.is_discarded()) {
+                    return json_error(res, 400, "Invalid JSON body");
+                }
+
+                if (!body.contains("question")) {
+                    return json_error(res, 400, "Question required");
+                }
+
+                std::string question = body["question"];
+
+                // Системный промпт для онбординга
+                std::string system_prompt = "Ты — AI-ассистент платформы AiGen. "
+                    "Помогай пользователям понять возможности платформы во время онбординга. "
+                    "Отвечай кратко, дружелюбно и по существу на том языке, на котором задан вопрос.";
+
+                // Вызов Mistral API (бесплатный вопрос, без проверки баланса)
+                std::string result = Utils::call_mistral_ai(question, system_prompt);
+
+                // Логирование
+                Utils::log_audit(email, "onboarding-ask-ai", question, result);
+
+                nlohmann::json response;
+                response["success"] = true;
+                response["answer"] = result;
+
+                res.set_content(response.dump(), "application/json");
+            }
+            catch (const std::exception& e) {
+                std::cerr << "[ERROR] /onboarding/ask-ai: " << e.what() << std::endl;
+                res.status = 500;
+                res.set_content(R"({"error": "Internal server error"})", "application/json");
+            }
+        });
+
         // ---------------------------------------------------------------------
         // POST /register
         // ---------------------------------------------------------------------
