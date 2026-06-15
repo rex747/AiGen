@@ -907,7 +907,7 @@ fun OnboardingCard13_AskAiQuestion(
                         text = "Ответ AI-агента:",
                         style = MaterialTheme.typography.labelLarge,
                         fontWeight = FontWeight.SemiBold,
-                        color = PrimaryLight
+                        color = Color.Green
                     )
                     Spacer(modifier = Modifier.height(8.dp))
                     Text(
@@ -966,7 +966,7 @@ fun OnboardingCard14_AiResponse(
                     Text(
                         text = aiResponse,
                         style = MaterialTheme.typography.bodyLarge,
-                        color = MaterialTheme.colorScheme.onSurface,
+                        color = Color.Black,
                         lineHeight = 24.sp
                     )
                 }
