@@ -719,6 +719,8 @@ private:
         std::string card_mask;
         double balance = 0.0;
         uint64_t version = 0;
+        std::string subscription_type;  // "monthly", "yearly", ""
+        uint64_t subscription_end_date = 0;  // timestamp в миллисекундах
     };
 
     UserData parse_user(const json& data) const {
@@ -729,6 +731,8 @@ private:
         ud.card_mask = data.value("card_mask", "");
         ud.balance = data.value("balance", 0.0);
         ud.version = data.value("version", 0);
+        ud.subscription_type = data.value("subscription_type", "");
+        ud.subscription_end_date = data.value("subscription_end_date", 0);
         return ud;
     }
 
@@ -739,7 +743,9 @@ private:
             {"card_token", ud.card_token},
             {"card_mask", ud.card_mask},
             {"balance", ud.balance},
-            {"version", ud.version}
+            {"version", ud.version},
+            {"subscription_type", ud.subscription_type},
+			{"subscription_end_date", ud.subscription_end_date}
         };
     }
 
@@ -940,6 +946,18 @@ public:
         return { j[email].value("card_token", ""), j[email].value("card_mask", "") };
     }
 
+    std::string getSubscriptionType(const std::string& email) const {
+        std::lock_guard<std::mutex> lock(persist_mtx_);
+        auto user = get_user(email);
+        return user ? user->subscription_type : "";
+    }
+
+    uint64_t getSubscriptionEndDate(const std::string& email) const {
+        std::lock_guard<std::mutex> lock(persist_mtx_);
+        auto user = get_user(email);
+        return user ? user->subscription_end_date : 0;
+    }
+
     bool remove_user(const std::string& email) {
         std::lock_guard<std::mutex> lock(persist_mtx_);
         FileLock flock(file_path_);
@@ -1024,6 +1042,30 @@ public:
             std::cerr << "[ERROR] Failed to activate demo: " << e.what() << std::endl;
             return false;
         }
+    }
+    
+    // Реализация активации подписки:
+    bool activateSubscription(const std::string& email, const std::string& plan_type) {
+        std::lock_guard<std::mutex> lock(mtx);
+        auto j = read_users_json();
+        if (!j.contains(email)) return false;
+
+        auto ud = parse_user(j[email]);
+        ud.subscription_type = plan_type;
+
+        // Вычисляем дату окончания подписки
+        auto now = std::chrono::system_clock::now();
+        auto duration = (plan_type == "yearly")
+            ? std::chrono::hours(24 * 365)   // 1 год
+            : std::chrono::hours(24 * 30);   // 1 месяц
+
+        auto end_time = now + duration;
+        ud.subscription_end_date = std::chrono::duration_cast<std::chrono::milliseconds>(
+            end_time.time_since_epoch()
+        ).count();
+
+        j[email] = user_to_json(ud);
+        return write_users_json(j);
     }
 
 private:
@@ -1390,6 +1432,8 @@ int main()
                 response["demo_active"] = status.demo_active;
                 response["demo_expires_at"] = status.demo_expires_at;
                 response["subscription_active"] = status.subscription_active;
+                response["subscription_type"] = store.getSubscriptionType(email);  // новый метод
+                response["subscription_end_date"] = store.getSubscriptionEndDate(email);  // новый метод
 
                 res.set_content(response.dump(), "application/json");
 
@@ -1899,8 +1943,83 @@ int main()
             json_ok(res, {
                 {"balance", new_balance},
                 {"message", "Balance topped up successfully"}
-                });
             });
+        });
+
+        // =============================================================================
+        // POST /billing/subscribe - Обработка подписки (списание средств + активация)
+        // =============================================================================
+        svr.Post("/billing/subscribe", [&](const httplib::Request& req, httplib::Response& res) {
+            try {
+                // Проверка авторизации
+                auto token_opt = extract_bearer(req);
+                if (!token_opt) return json_error(res, 401, "Missing token");
+                auto email_opt = JWT::verify(*token_opt);
+                if (!email_opt) return json_error(res, 401, "Invalid token");
+
+                std::string email = *email_opt;
+
+                // Парсинг JSON
+                auto body = json::parse(req.body, nullptr, false);
+                if (body.is_discarded()) {
+                    return json_error(res, 400, "Invalid JSON body");
+                }
+
+                if (!body.contains("plan_type")) {
+                    return json_error(res, 400, "plan_type required");
+                }
+
+                std::string plan_type = body["plan_type"];
+
+                // Определяем стоимость плана
+                double plan_cost = 0.0;
+                if (plan_type == "monthly") {
+                    plan_cost = 9.99;
+                }
+                else if (plan_type == "yearly") {
+                    plan_cost = 110.0;
+                }
+                else {
+                    return json_error(res, 400, "Invalid plan_type. Use 'monthly' or 'yearly'");
+                }
+
+                // Проверяем баланс пользователя
+                if (!store.has_sufficient_balance(email, plan_cost)) {
+                    return json_error(res, 402, "Insufficient balance. Please top up your account.");
+                }
+
+                // Списываем средства
+                if (!store.update_balance(email, -plan_cost)) {
+                    return json_error(res, 500, "Failed to charge balance");
+                }
+
+                // Активируем подписку
+                if (!store.activateSubscription(email, plan_type)) {
+                    // Откатываем списание, если не удалось активировать подписку
+                    store.update_balance(email, plan_cost);
+                    return json_error(res, 500, "Failed to activate subscription");
+                }
+
+                // Логирование
+                Utils::log_audit(email, "billing-subscribe",
+                    "Plan: " + plan_type + ", Cost: " + std::to_string(plan_cost),
+                    "Subscription activated");
+
+                nlohmann::json response;
+                response["success"] = true;
+                response["message"] = "Subscription activated successfully";
+                response["plan_type"] = plan_type;
+                response["amount_charged"] = plan_cost;
+                response["new_balance"] = store.get_balance(email);
+
+                res.set_content(response.dump(), "application/json");
+            }
+            catch (const std::exception& e) {
+                std::cerr << "[ERROR] /billing/subscribe: " << e.what() << std::endl;
+                res.status = 500;
+                res.set_content(R"({"error": "Internal server error"})", "application/json");
+            }
+        });
 
         // =============================================================================
         // POST /agent/invoke 
