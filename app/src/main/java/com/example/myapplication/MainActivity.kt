@@ -96,22 +96,21 @@ class MainActivity : ComponentActivity() {
                             )
                         }
 
-                        // Экран онбординга
+// Экран онбординга
                         composable("onboarding") {
                             OnboardingScreen(
                                 mainViewModel = mainViewModel,
                                 onOnboardingComplete = { selectedPlan ->
-                                    markOnboardingCompleted() // Отмечаем, что онбординг пройден
                                     when (selectedPlan) {
                                         "demo" -> {
-                                            // Демо-версия: переход на главный экран
-                                            navController.navigate("home") {
+                                            // Демо-версия: переход на экран регистрации для активации демо
+                                            navController.navigate("register_for_demo") {
                                                 popUpTo("onboarding") { inclusive = true }
                                             }
                                         }
                                         "monthly", "yearly" -> {
-                                            // Платная подписка: переход на экран оплаты
-                                            navController.navigate("payment/$selectedPlan") {
+                                            // Платная подписка: переход на экран регистрации и оплаты
+                                            navController.navigate("register_and_payment/$selectedPlan") {
                                                 popUpTo("onboarding") { inclusive = true }
                                             }
                                         }
@@ -120,23 +119,39 @@ class MainActivity : ComponentActivity() {
                             )
                         }
 
-                        // Экран оплаты
+                        // Экран регистрации для активации демо-версии
+                        composable("register_for_demo") {
+                            RegisterForDemoScreen(
+                                mainViewModel = mainViewModel,
+                                onboardingViewModel = onboardingViewModel,
+                                onDemoActivated = {
+                                    markOnboardingCompleted()
+                                    navController.navigate("home") {
+                                        popUpTo("register_for_demo") { inclusive = true }
+                                    }
+                                },
+                                onNavigateBack = { navController.popBackStack() }
+                            )
+                        }
+                        // Экран регистрации и оплаты подписки
                         composable(
-                            route = "payment/{plan}",
+                            route = "register_and_payment/{plan}",
                             arguments = listOf(navArgument("plan") { type = NavType.StringType })
                         ) { backStackEntry ->
                             val plan = backStackEntry.arguments?.getString("plan") ?: "monthly"
-                            PaymentScreen(
+                            RegisterAndPaymentScreen(
                                 plan = plan,
-                                viewModel = mainViewModel,
+                                mainViewModel = mainViewModel,
                                 onPaymentSuccess = {
+                                    markOnboardingCompleted()
                                     navController.navigate("home") {
-                                        popUpTo("onboarding") { inclusive = true }
+                                        popUpTo("register_and_payment/$plan") { inclusive = true }
                                     }
                                 },
                                 onBack = { navController.popBackStack() }
                             )
                         }
+
 
                         // Главный экран
                         composable("home") {

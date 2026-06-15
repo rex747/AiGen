@@ -31,7 +31,6 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
 
 
 
-
     private val repository = AuthRepository()
 
     val isPremium: StateFlow<Boolean> = MutableStateFlow(true)
@@ -73,6 +72,26 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
                     _authError.value = e.message ?: "Registration error"
                 }
             )
+            _isLoading.value = false
+        }
+    }
+
+    /**
+     * Оформление подписки - списание средств и активация
+     */
+    fun subscribe(planType: String, onResult: (Boolean, String) -> Unit) {
+        viewModelScope.launch {
+            val token = _currentUser.value?.token ?: return@launch
+            _isLoading.value = true
+            val result = withContext(Dispatchers.IO) { repository.subscribe(token, planType) }
+            result.onSuccess { response ->
+                _userBalance.value = response.newBalance
+                loadProfile()
+                onResult(true, response.message)
+            }
+            result.onFailure { e ->
+                onResult(false, e.message ?: "Ошибка оформления подписки")
+            }
             _isLoading.value = false
         }
     }

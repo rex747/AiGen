@@ -16,6 +16,8 @@ import retrofit2.http.*
 import com.example.myapplication.model.ProfileUpdateRequest
 import com.example.myapplication.model.BalanceResponse
 import com.example.myapplication.model.TopupRequest
+import com.example.myapplication.model.SubscribeRequest
+import com.example.myapplication.model.SubscribeResponse
 interface AuthApi {
     @Headers(
         "Cache-Control: no-cache, no-store, must-revalidate",
@@ -106,4 +108,17 @@ interface AuthApi {
         @Header("Authorization") auth: String,
         @Path("taskId") taskId: String
     ): Response<GetTaskResponse>
+
+    /**
+     * Обработка подписки - списание средств и активация
+     */
+    @Headers(
+        "Cache-Control: no-cache, no-store, must-revalidate",
+        "Pragma: no-cache"
+    )
+    @POST("/billing/subscribe")
+    suspend fun subscribe(
+        @Header("Authorization") auth: String,
+        @Body request: SubscribeRequest
+    ): Response<SubscribeResponse>
 }

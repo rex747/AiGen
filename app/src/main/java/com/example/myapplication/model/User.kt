@@ -60,3 +60,20 @@ data class BalanceResponse(
 data class TopupRequest(
     val amount: Double
 )
+/**
+ * Запрос на оформление подписки
+ */
+data class SubscribeRequest(
+    @SerializedName("plan_type") val planType: String  // "monthly" или "yearly"
+)
+
+/**
+ * Ответ после оформления подписки
+ */
+data class SubscribeResponse(
+    @SerializedName("success") val success: Boolean,
+    @SerializedName("message") val message: String,
+    @SerializedName("plan_type") val planType: String,
+    @SerializedName("amount_charged") val amountCharged: Double,
+    @SerializedName("new_balance") val newBalance: Double
+)

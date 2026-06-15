@@ -169,9 +169,9 @@ fun PaymentScreen(
     }
 }
 
-private data class PlanDetails(
+data class PlanDetails(
     val name: String,
     val price: String,
     val period: String,
-    val features: List<String>
+    val features: Double
 )

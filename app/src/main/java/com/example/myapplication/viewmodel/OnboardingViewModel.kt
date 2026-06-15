@@ -11,7 +11,7 @@ import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
-import kotlin.time.Duration.Companion.milliseconds
+
 
 /**
  * ViewModel для управления состоянием онбординга
@@ -136,13 +136,11 @@ class OnboardingViewModel(application: Application) : AndroidViewModel(applicati
 
             result.onSuccess { response ->
                 _onboardingCompleted.value = true
-
-                // Если выбрана демо-версия, активируем её
-                if (_selectedPlan.value == "demo") {
-                    activateDemo(token)
-                }
+                // УБРАНО: автоматическая активация демо
+                // if (_selectedPlan.value == "demo") {
+                //     activateDemo(token)
+                // }
             }
-
             result.onFailure { e ->
                 _error.value = e.message ?: "Ошибка сохранения данных онбординга"
             }
@@ -152,21 +150,21 @@ class OnboardingViewModel(application: Application) : AndroidViewModel(applicati
     }
 
     /**
-     * Активация демо-версии на сервере
+     * Активация демо-версии на сервере (публичный метод)
      */
-    private fun activateDemo(token: String) {
+    fun activateDemoVersion(token: String, onResult: (Boolean, String) -> Unit) {
         viewModelScope.launch {
             val result = withContext(Dispatchers.IO) {
                 repository.activateDemo(token)
             }
-
+            result.onSuccess {
+                onResult(true, "Демо-версия активирована на 3 дня")
+            }
             result.onFailure { e ->
-                _error.value = "Ошибка активации демо: ${e.message}"
+                onResult(false, "Ошибка активации демо: ${e.message}")
             }
         }
     }
-
-
 
     /**
      * Сброс состояния онбординга

@@ -21,6 +21,24 @@ class AuthRepository {
         }
     }
 
+    /**
+     * Оформление подписки - списание средств и активация
+     */
+    suspend fun subscribe(token: String, planType: String): Result<SubscribeResponse> {
+        return try {
+            val request = SubscribeRequest(planType)
+            val response = api.subscribe("Bearer $token", request)
+            if (response.isSuccessful && response.body() != null) {
+                Result.success(response.body()!!)
+            } else {
+                val error = response.errorBody()?.string() ?: "Failed to subscribe"
+                Result.failure(Exception(error))
+            }
+        } catch (e: Exception) {
+            Result.failure(e)
+        }
+    }
+
     suspend fun login(email: String, password: String): Result<AuthResponse> {
         return try {
             val response = api.login(AuthRequest(email, password))
