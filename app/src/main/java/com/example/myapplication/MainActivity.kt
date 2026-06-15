@@ -167,7 +167,12 @@ class MainActivity : ComponentActivity() {
                         composable("profile") {
                             ProfileScreen(
                                 viewModel = mainViewModel,
-                                onBack = { navController.popBackStack() },
+                                onBack = {
+                                    navController.navigate("home") {
+                                        popUpTo("profile") { inclusive = true }
+                                        launchSingleTop = true
+                                    }
+                                },
                                 onLoggedOut = {
                                     navController.navigate("login") {
                                         popUpTo(0) { inclusive = true }
