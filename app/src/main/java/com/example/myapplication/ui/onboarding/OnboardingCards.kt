@@ -872,7 +872,7 @@ fun OnboardingCard13_AskAiQuestion(
             enabled = question.isNotBlank() && !isLoading,
             modifier = Modifier.fillMaxWidth(),
             colors = ButtonDefaults.buttonColors(
-                containerColor = PrimaryLight
+                containerColor = SuccessLight
             )
         ) {
             if (isLoading) {
