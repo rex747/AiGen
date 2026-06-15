@@ -109,9 +109,9 @@ class BillingManager(context: Context) {
             .setProductList(productList)
             .build()
 
-        billingClient.queryProductDetailsAsync(params) { billingResult, productDetailsList ->
+        billingClient.queryProductDetailsAsync(params) { billingResult, queryProductDetailsResult ->
             if (billingResult.responseCode == BillingClient.BillingResponseCode.OK) {
-                for (details in productDetailsList) {
+                for (details in queryProductDetailsResult.productDetailsList) {
                     productDetailsMap[details.productId] = details
                 }
             }

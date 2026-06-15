@@ -1,14 +1,11 @@
 plugins {
     alias(libs.plugins.android.application)
     alias(libs.plugins.kotlin.compose)
-
 }
 
 android {
     namespace = "com.example.myapplication"
-    compileSdk {
-        version = release(37)
-    }
+    compileSdk = 37                          // ← ИСПРАВЛЕНО: было compileSdk { version = release(37) }
 
     defaultConfig {
         applicationId = "com.example.myapplication"
@@ -17,7 +14,6 @@ android {
         targetSdk = 37
         versionCode = 1
         versionName = "1.0"
-
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
         vectorDrawables { useSupportLibrary = true }
     }
@@ -31,33 +27,41 @@ android {
             )
         }
     }
+
     compileOptions {
         sourceCompatibility = JavaVersion.VERSION_11
         targetCompatibility = JavaVersion.VERSION_11
     }
 
+
+
     packaging { resources { excludes += "/META-INF/{AL2.0,LGPL2.1}" } }
 }
 
 dependencies {
-
-    implementation(libs.androidx.compose.foundation)
-    implementation(libs.androidx.ui)
-    implementation(libs.billing)
-    val composeBom = platform("androidx.compose:compose-bom:2024.02.00")
+    // Единый BOM из version catalog (2026.04.01) — совместим с Kotlin 2.3.21
+    // ← ИСПРАВЛЕНО: был жёстко прописан compose-bom:2024.02.00, несовместимый с Kotlin 2.x
+    val composeBom = platform(libs.androidx.compose.bom)
     implementation(composeBom)
 
-    implementation("androidx.core:core-ktx:1.19.0")
-    implementation(libs.androidx.lifecycle.runtime.ktx)
-    implementation(libs.androidx.activity.compose)
+    // УДАЛЕНО: implementation(libs.androidx.compose.foundation)  — явная версия 1.11.2 конфликтовала с BOM
+    // УДАЛЕНО: implementation(libs.androidx.ui)                  — явная версия 1.11.1 конфликтовала с BOM
+    // УДАЛЕНО: implementation(libs.billing)                      — ЭТО com.google.androidbrowserhelper:billing,
+    //                                                              а НЕ Google Play Billing!
 
-    // Compose UI
+    // Compose UI — версии управляются BOM 2026.04.01, без явных версий
     implementation("androidx.compose.ui:ui")
     implementation("androidx.compose.ui:ui-graphics")
     implementation("androidx.compose.ui:ui-tooling-preview")
     implementation("androidx.compose.material3:material3")
     implementation("androidx.compose.material:material-icons-extended")
+    implementation("androidx.compose.foundation:foundation")     // ← версию берёт из BOM
     implementation("androidx.constraintlayout:constraintlayout-compose:1.1.1")
+
+    // AndroidX core
+    implementation("androidx.core:core-ktx:1.19.0")
+    implementation(libs.androidx.lifecycle.runtime.ktx)
+    implementation(libs.androidx.activity.compose)
 
     // Navigation Compose
     implementation("androidx.navigation:navigation-compose:2.9.8")
@@ -65,22 +69,21 @@ dependencies {
     // ViewModel Compose
     implementation("androidx.lifecycle:lifecycle-viewmodel-compose:2.10.0")
 
-    // network requests
+    // Network
     implementation("com.squareup.retrofit2:retrofit:3.0.0")
     implementation("com.squareup.retrofit2:converter-gson:3.0.0")
     implementation("com.squareup.okhttp3:logging-interceptor:5.3.2")
 
-    // Google Play Billing 8.0.0
+    // Google Play Billing 9.0.0 — ЕДИНСТВЕННАЯ библиотека биллинга, без libs.billing
     implementation("com.android.billingclient:billing:9.0.0")
     implementation("com.android.billingclient:billing-ktx:9.0.0")
 
     // Google Pay API (Wallet)
     implementation("com.google.android.gms:play-services-wallet:20.0.0")
 
-    // Room (опционально, для хранения истории)
+    // Room
     implementation("androidx.room:room-runtime:2.8.4")
     implementation("androidx.room:room-ktx:2.8.4")
-    // kapt("androidx.room:room-compiler:2.6.1") // если понадобится
 
     // Coroutines
     implementation("org.jetbrains.kotlinx:kotlinx-coroutines-android:1.11.0")
