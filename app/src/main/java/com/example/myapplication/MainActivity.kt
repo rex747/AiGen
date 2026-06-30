@@ -36,9 +36,19 @@ class MainActivity : ComponentActivity() {
     private val isFirstLaunch: Boolean
         get() = sharedPreferences.getBoolean("is_first_launch", true)
 
+    private val isOnboardingCompleted: Boolean
+        get() = sharedPreferences.getBoolean("is_onboarding_completed", false)
+
+
     private fun markOnboardingCompleted() {
-        sharedPreferences.edit { putBoolean("is_first_launch", false) }
+        sharedPreferences.edit {
+            putBoolean("is_first_launch", false)
+            putBoolean("is_onboarding_completed", true)
+        }
     }
+
+
+
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         setContent {
@@ -54,6 +64,8 @@ class MainActivity : ComponentActivity() {
                     val currentUser by mainViewModel.currentUser.collectAsState()
                     val onboardingCompleted by onboardingViewModel.onboardingCompleted.collectAsState()
 
+
+
                     // Определение начального экрана
                     val startDestination = when {
                         isFirstLaunch -> "onboarding"        // ПЕРВЫЙ ЗАПУСК → Онбординг
@@ -61,6 +73,7 @@ class MainActivity : ComponentActivity() {
                         !onboardingCompleted -> "onboarding" // Онбординг не пройден → Онбординг
                         else -> "profile"                    // Все готово → ЛИЧНЫЙ КАБИНЕТ
                     }
+
 
                     NavHost(
                         navController = navController,
@@ -109,6 +122,7 @@ class MainActivity : ComponentActivity() {
                             OnboardingScreen(
                                 mainViewModel = mainViewModel,
                                 onOnboardingComplete = { selectedPlan ->
+                                    markOnboardingCompleted()
                                     when (selectedPlan) {
                                         "monthly", "yearly" -> {
                                             // Платная подписка: переход на экран регистрации и оплаты
