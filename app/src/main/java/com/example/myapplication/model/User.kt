@@ -1,10 +1,15 @@
 package com.example.myapplication.model
 
 import com.google.gson.annotations.SerializedName
+import kotlinx.serialization.SerialName
+import kotlinx.serialization.Serializable
 
+@Serializable
 data class User(
     val email: String,
-    val token: String? = null
+    val token: String? = null,
+    @SerialName("expires_in")
+    val expiresIn: Long    // <-- число, а не строка
 )
 
 // Ответ от сервера при запросе профиля

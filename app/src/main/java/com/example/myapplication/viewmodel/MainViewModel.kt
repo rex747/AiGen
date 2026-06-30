@@ -29,8 +29,6 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
     private val _topupSuccess = MutableSharedFlow<Unit>(replay = 0)
     val topupSuccess: SharedFlow<Unit> = _topupSuccess
 
-
-
     private val repository = AuthRepository()
 
     val isPremium: StateFlow<Boolean> = MutableStateFlow(true)
@@ -46,6 +44,9 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
     val token: String
         get() = _currentUser.value?.token ?: ""
     // =============================================================
+
+    val expiresIn: Any
+        get() = _currentUser.value?.expiresIn ?: Long
 
     private val _profileActionError = MutableStateFlow<String?>(null)
     val profileActionError: StateFlow<String?> = _profileActionError
@@ -66,7 +67,7 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
             val result = withContext(Dispatchers.IO) { repository.register(email, password) }
             result.fold(
                 onSuccess = { response ->
-                    _currentUser.value = User(email = response.email, token = response.token)
+                    _currentUser.value = User(email = response.email, token = response.token, expiresIn = System.currentTimeMillis() + response.expiresIn * 1000L)
                 },
                 onFailure = { e ->
                     _authError.value = e.message ?: "Registration error"
