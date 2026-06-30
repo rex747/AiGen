@@ -651,9 +651,14 @@ namespace JWT {
                 .allow_algorithm(jwt::algorithm::hs256{ Config::JWT_SECRET })
                 .with_issuer("secure-auth-server")
                 .verify(decoded);
+            // проверка expiration вручную на всякий случай
+            if (decoded.get_expires_at() < std::chrono::system_clock::now()) {
+                return std::nullopt;
+            }
             return decoded.get_payload_claim("email").as_string();
         }
-        catch (const std::exception&) {
+        catch (const std::exception& e) {
+            std::cerr << "[JWT] Verify failed: " << e.what() << std::endl;
             return std::nullopt;
         }
     }
