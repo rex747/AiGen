@@ -179,6 +179,24 @@ class OnboardingViewModel(application: Application) : AndroidViewModel(applicati
     }
 
     /**
+     * Загрузка статуса онбординга с сервера
+     */
+    fun loadOnboardingStatus(token: String) {
+        viewModelScope.launch {
+            val result = withContext(Dispatchers.IO) {
+                repository.getOnboardingStatus(token)
+            }
+            result.onSuccess { status ->
+                _onboardingCompleted.value = status.onboardingCompleted
+                // Можно также обновить другие поля, если нужно
+            }
+            result.onFailure { e ->
+                _error.value = e.message ?: "Ошибка загрузки статуса онбординга"
+            }
+        }
+    }
+
+    /**
      * Очистка ошибки
      */
     fun clearError() {

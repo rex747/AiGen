@@ -72,6 +72,11 @@ class MainActivity : ComponentActivity() {
                                 viewModel = mainViewModel,
                                 onNavigateToRegister = { navController.navigate("register") },
                                 onLoginSuccess = {
+                                    // Загружаем статус онбординга с сервера перед переходом
+                                    val token = mainViewModel.token
+                                    if (token.isNotEmpty()) {
+                                        onboardingViewModel.loadOnboardingStatus(token)
+                                    }
                                     // После входа всегда переходим в личный кабинет
                                     navController.navigate("profile") {
                                         popUpTo("login") { inclusive = true }
@@ -86,6 +91,11 @@ class MainActivity : ComponentActivity() {
                                 viewModel = mainViewModel,
                                 onNavigateBack = { navController.popBackStack() },
                                 onRegisterSuccess = {
+                                    // проверяем статус онбординга с сервера
+                                    val token = mainViewModel.token
+                                    if (token.isNotEmpty()) {
+                                        onboardingViewModel.loadOnboardingStatus(token)
+                                    }
                                     // После регистрации переходим в личный кабинет
                                     navController.navigate("profile") {
                                         popUpTo("register") { inclusive = true }
