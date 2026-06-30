@@ -104,7 +104,7 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
             val result = withContext(Dispatchers.IO) { repository.login(email, password) }
             result.fold(
                 onSuccess = { response ->
-                    _currentUser.value = User(email = response.email, token = response.token)
+                    _currentUser.value = User(email = response.email, token = response.token,expiresIn = System.currentTimeMillis() + response.expiresIn * 1000L)
                 },
                 onFailure = { e ->
                     _authError.value = e.message ?: "Login error"

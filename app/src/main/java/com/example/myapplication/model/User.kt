@@ -30,8 +30,10 @@ data class ProfileUpdateRequest(
 )
 
 // Запросы/ответы API
-data class AuthRequest(val email: String, val password: String)
-data class AuthResponse(val token: String, val email: String)
+data class AuthRequest(val email: String, val password: String, @SerializedName("expires_in")
+val expiresIn: Long = 0L)
+data class AuthResponse(val token: String, val email: String, @SerializedName("expires_in")
+val expiresIn: Long = 0L)
 data class ErrorResponse(val error: String)
 
 // Ответ при асинхронном запуске оркестрации (только одно объявление!)
