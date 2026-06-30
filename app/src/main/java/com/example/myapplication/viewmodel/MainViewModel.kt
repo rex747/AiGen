@@ -17,6 +17,7 @@ import kotlin.time.Duration.Companion.milliseconds
 class MainViewModel(application: Application) : AndroidViewModel(application) {
 
     // Аутентификация
+    private val sharedPrefs = getApplication<Application>().getSharedPreferences("aigen_prefs", Context.MODE_PRIVATE)
     private val _currentUser = MutableStateFlow<User?>(null)
     val currentUser: StateFlow<User?> = _currentUser
 
