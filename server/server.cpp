@@ -1550,6 +1550,71 @@ int main()
             }
         });
 
+        // =============================================================================
+// POST /onboarding/save - Сохранение данных онбординга
+// =============================================================================
+        svr.Post("/onboarding/save", [&](const httplib::Request& req, httplib::Response& res) {
+            try {
+                auto token_opt = extract_bearer(req);
+                if (!token_opt) return json_error(res, 401, "Missing token");
+
+                auto email_opt = JWT::verify(*token_opt);
+                if (!email_opt) return json_error(res, 401, "Invalid token");
+
+                std::string email = *email_opt;
+
+                auto body = json::parse(req.body, nullptr, false);
+                if (body.is_discarded()) {
+                    return json_error(res, 400, "Invalid JSON body");
+                }
+
+                OnboardingData data;
+                data.ai_purpose = body.value("ai_purpose", "");
+                data.industry = body.value("industry", "");
+
+                if (body.contains("required_skills") && body["required_skills"].is_array()) {
+                    for (const auto& skill : body["required_skills"]) {
+                        if (skill.is_string()) {
+                            data.required_skills.push_back(skill.get<std::string>());
+                        }
+                    }
+                }
+
+                data.current_task_duration_hours = body.value("current_task_duration_hours", 0);
+                data.estimated_ai_duration_hours = body.value("estimated_ai_duration_hours", 0);
+                data.usage_frequency = body.value("usage_frequency", "");
+                data.usage_time_of_day = body.value("usage_time_of_day", "");
+                data.demo_selected = body.value("demo_selected", false);
+                data.plan_selected = body.value("plan_selected", "");
+
+                auto now = std::chrono::system_clock::now();
+                data.completed_at = std::chrono::duration_cast<std::chrono::milliseconds>(
+                    now.time_since_epoch()
+                ).count();
+
+                if (!store.saveOnboardingData(email, data)) {
+                    return json_error(res, 500, "Failed to save onboarding data");
+                }
+
+                Utils::log_audit(email, "onboarding-save",
+                    "Purpose: " + data.ai_purpose + ", Industry: " + data.industry,
+                    "Onboarding completed");
+
+                nlohmann::json response;
+                response["success"] = true;
+                response["message"] = "Onboarding data saved successfully";
+                response["onboarding_completed"] = true;
+                response["demo_active"] = data.demo_selected;
+
+                res.set_content(response.dump(), "application/json");
+            }
+            catch (const std::exception& e) {
+                std::cerr << "[ERROR] /onboarding/save: " << e.what() << std::endl;
+                res.status = 500;
+                res.set_content(R"({"error": "Internal server error"})", "application/json");
+            }
+        });
+
         // ---------------------------------------------------------------------
         // POST /register
         // ---------------------------------------------------------------------
