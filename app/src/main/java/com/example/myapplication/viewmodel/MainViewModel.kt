@@ -106,13 +106,32 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
             val result = withContext(Dispatchers.IO) { repository.login(email, password) }
             result.fold(
                 onSuccess = { response ->
-                    _currentUser.value = User(email = response.email, token = response.token,expiresIn = System.currentTimeMillis() + response.expiresIn * 1000L)
+                    _currentUser.value = User(
+                        email = response.email, token = response.token,
+                        expiresIn = System.currentTimeMillis() + response.expiresIn * 1000L)
                 },
                 onFailure = { e ->
                     _authError.value = e.message ?: "Login error"
                 }
             )
             _isLoading.value = false
+        }
+    }
+
+    /**
+     * Восстановление сессии пользователя из локального хранилища
+     * без повторного запроса к серверу.
+     */
+    fun restoreSession(email: String, token: String?, expiresIn: Long?) {
+        // Проверяем, не истек ли токен
+        val currentTime = System.currentTimeMillis()
+        val isTokenValid = expiresIn == null || currentTime < expiresIn
+
+        if (isTokenValid) {
+            _currentUser.value = User(email = email, token = token, expiresIn = expiresIn)
+        } else {
+            // Токен истек — очищаем сессию
+            _currentUser.value = null
         }
     }
 

@@ -70,7 +70,7 @@ class MainActivity : ComponentActivity() {
                         val savedEmail = sharedPreferences.getString("user_email", null)
                         if (!savedToken.isNullOrEmpty() && !savedEmail.isNullOrEmpty()) {
                             // Восстанавливаем в ViewModel (добавьте метод в MainViewModel)
-                            mainViewModel.restoreSession(savedEmail, savedToken)
+                            mainViewModel.restoreSession(savedEmail, savedToken, expiresIn: Long?)
                         }
                     }
 
