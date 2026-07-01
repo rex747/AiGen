@@ -122,16 +122,20 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
      * Восстановление сессии пользователя из локального хранилища
      * без повторного запроса к серверу.
      */
-    fun restoreSession(email: String, token: String?, expiresIn: Long?) {
-        // Проверяем, не истек ли токен
-        val currentTime = System.currentTimeMillis()
-        val isTokenValid = expiresIn == null || currentTime < expiresIn
+        fun restoreSession(email: String?, token: String?, expiresIn: Long?) {
+        if (!email.isNullOrBlank() && !token.isNullOrBlank() &&
+            expiresIn != null && expiresIn > System.currentTimeMillis()) {
 
-        if (isTokenValid) {
-            _currentUser.value = User(email = email, token = token, expiresIn = expiresIn)
+            _currentUser.value = User(
+                email = email,
+                token = token,
+                expiresIn = expiresIn
+            )
+            // Опционально: загрузить профиль/баланс после восстановления
+            loadProfile()
         } else {
-            // Токен истек — очищаем сессию
             _currentUser.value = null
+            // Очистка, если токен истёк
         }
     }
 

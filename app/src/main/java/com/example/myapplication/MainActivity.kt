@@ -64,13 +64,15 @@ class MainActivity : ComponentActivity() {
                     val currentUser by mainViewModel.currentUser.collectAsState()
                     val onboardingCompleted by onboardingViewModel.onboardingCompleted.collectAsState()
 
+
                     // Восстановление сессии из SharedPreferences
                     LaunchedEffect(Unit) {
                         val savedToken = sharedPreferences.getString("auth_token", null)
                         val savedEmail = sharedPreferences.getString("user_email", null)
+                        val savedExpiresIn = sharedPreferences.getLong("saved_expires_in", 0L)
                         if (!savedToken.isNullOrEmpty() && !savedEmail.isNullOrEmpty()) {
                             // Восстанавливаем в ViewModel (добавьте метод в MainViewModel)
-                            mainViewModel.restoreSession(savedEmail, savedToken, expiresIn)
+                            mainViewModel.restoreSession(savedEmail, savedToken, savedExpiresIn)
                         }
                     }
 
