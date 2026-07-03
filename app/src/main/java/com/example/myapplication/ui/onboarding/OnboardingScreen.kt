@@ -183,7 +183,7 @@ fun OnboardingScreen(
                         onPlanSelected = { plan -> viewModel.setSelectedPlan(plan) },
                         onComplete = {
                             val token = mainViewModel.token
-                            viewModel.completeOnboarding(token)
+                            //viewModel.completeOnboarding(token)
                             onOnboardingComplete(viewModel.selectedPlan.value)
                         }
                     )

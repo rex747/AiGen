@@ -26,9 +26,11 @@ import androidx.core.content.edit
 import com.example.myapplication.billing.BillingManager
 
 class MainActivity : ComponentActivity() {
+
     private val sharedPreferences by lazy {
         getSharedPreferences("aigen_prefs", Context.MODE_PRIVATE)
     }
+
     private val billingManager by lazy {
         BillingManager(this).also { it.startConnection() }
     }
@@ -39,7 +41,6 @@ class MainActivity : ComponentActivity() {
     private val isOnboardingCompleted: Boolean
         get() = sharedPreferences.getBoolean("is_onboarding_completed", false)
 
-
     private fun markOnboardingCompleted() {
         sharedPreferences.edit {
             putBoolean("is_first_launch", false)
@@ -47,10 +48,9 @@ class MainActivity : ComponentActivity() {
         }
     }
 
-
-
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
+
         setContent {
             MyApplicationTheme {
                 Surface(
@@ -64,28 +64,29 @@ class MainActivity : ComponentActivity() {
                     val currentUser by mainViewModel.currentUser.collectAsState()
                     val onboardingCompleted by onboardingViewModel.onboardingCompleted.collectAsState()
 
-
                     // Восстановление сессии из SharedPreferences
                     LaunchedEffect(Unit) {
                         val savedToken = sharedPreferences.getString("auth_token", null)
                         val savedEmail = sharedPreferences.getString("user_email", null)
                         val savedExpiresIn = sharedPreferences.getLong("saved_expires_in", 0L)
+
                         if (!savedToken.isNullOrEmpty() && !savedEmail.isNullOrEmpty()) {
-                            // Восстанавливаем в ViewModel (добавьте метод в MainViewModel)
+                            // Восстанавливаем сессию в ViewModel
                             mainViewModel.restoreSession(savedEmail, savedToken, savedExpiresIn)
+
+                            // ✅ ИСПРАВЛЕНИЕ: Загружаем статус онбординга с сервера после восстановления сессии
+                            // Это необходимо для корректного определения начального экрана
+                            onboardingViewModel.loadOnboardingStatus(savedToken)
                         }
                     }
 
-
-
                     // Определение начального экрана
                     val startDestination = when {
-                        isFirstLaunch -> "onboarding"        // ПЕРВЫЙ ЗАПУСК → Онбординг
-                        currentUser == null -> "login"       // Не авторизован → Логин
-                        !onboardingCompleted -> "onboarding" // Онбординг не пройден → Онбординг
-                        else -> "profile"                    // Все готово → ЛИЧНЫЙ КАБИНЕТ
+                        isFirstLaunch -> "onboarding"           // ПЕРВЫЙ ЗАПУСК → Онбординг
+                        currentUser == null -> "login"          // Не авторизован → Логин
+                        !onboardingCompleted -> "onboarding"    // Онбординг не пройден → Онбординг
+                        else -> "profile"                       // Все готово → ЛИЧНЫЙ КАБИНЕТ
                     }
-
 
                     NavHost(
                         navController = navController,
@@ -116,7 +117,7 @@ class MainActivity : ComponentActivity() {
                                 viewModel = mainViewModel,
                                 onNavigateBack = { navController.popBackStack() },
                                 onRegisterSuccess = {
-                                    // проверяем статус онбординга с сервера
+                                    // Проверяем статус онбординга с сервера
                                     val token = mainViewModel.token
                                     if (token.isNotEmpty()) {
                                         onboardingViewModel.loadOnboardingStatus(token)
@@ -135,6 +136,7 @@ class MainActivity : ComponentActivity() {
                                 mainViewModel = mainViewModel,
                                 onOnboardingComplete = { selectedPlan ->
                                     markOnboardingCompleted()
+
                                     when (selectedPlan) {
                                         "monthly", "yearly" -> {
                                             // Платная подписка: переход на экран регистрации и оплаты
@@ -174,6 +176,7 @@ class MainActivity : ComponentActivity() {
                                 onNavigateBack = { navController.popBackStack() }
                             )
                         }
+
                         // Экран регистрации и оплаты подписки
                         composable(
                             route = "register_and_payment/{plan}",
@@ -185,6 +188,13 @@ class MainActivity : ComponentActivity() {
                                 mainViewModel = mainViewModel,
                                 billingManager = billingManager,
                                 onPaymentSuccess = {
+                                    // ✅ ИСПРАВЛЕНИЕ: Сохраняем данные онбординга на сервере после успешной оплаты
+                                    // Это необходимо, чтобы пользователь мог использовать агентов
+                                    val token = mainViewModel.token
+                                    if (token.isNotEmpty()) {
+                                        onboardingViewModel.completeOnboarding(token)
+                                    }
+
                                     markOnboardingCompleted()
                                     navController.navigate("profile") {
                                         popUpTo("register_and_payment/$plan") { inclusive = true }
@@ -193,7 +203,6 @@ class MainActivity : ComponentActivity() {
                                 onBack = { navController.popBackStack() }
                             )
                         }
-
 
                         // Главный экран
                         composable("home") {

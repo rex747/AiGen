@@ -794,7 +794,9 @@ private:
     }
 
 public:
-    explicit UserStore(std::string path) : file_path_(std::move(path)) {}
+    explicit UserStore(std::string path) : file_path_(std::move(path)) {
+        loadFromDisk();
+    }
 
     bool exists(const std::string& email) const {
         std::lock_guard<std::mutex> lock(persist_mtx_);

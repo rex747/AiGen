@@ -127,6 +127,11 @@ class OnboardingViewModel(application: Application) : AndroidViewModel(applicati
      */
     fun completeOnboarding(token: String) {
         viewModelScope.launch {
+            if (token.isEmpty()){
+                _onboardingCompleted.value = false
+                return@launch
+            }
+
             _isLoading.value = true
             _error.value = null
 
@@ -136,10 +141,7 @@ class OnboardingViewModel(application: Application) : AndroidViewModel(applicati
 
             result.onSuccess { response ->
                 _onboardingCompleted.value = true
-                // УБРАНО: автоматическая активация демо
-                // if (_selectedPlan.value == "demo") {
-                //     activateDemo(token)
-                // }
+
             }
             result.onFailure { e ->
                 _error.value = e.message ?: "Ошибка сохранения данных онбординга"
