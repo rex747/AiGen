@@ -15,6 +15,8 @@ data class User(
 // Ответ от сервера при запросе профиля
 data class ProfileResponse(
     val email: String,
+    val isPremium: Boolean,
+    val onboardingCompleted: Boolean,
     @SerializedName("card_mask")
     val cardMask: String?,
     val balance: Double = 0.0 // новое поле баланса пользователя

@@ -64,46 +64,42 @@ class MainActivity : ComponentActivity() {
                     val currentUser by mainViewModel.currentUser.collectAsState()
                     val onboardingCompleted by onboardingViewModel.onboardingCompleted.collectAsState()
 
-                    // Восстановление сессии из SharedPreferences
                     LaunchedEffect(Unit) {
                         val savedToken = sharedPreferences.getString("auth_token", null)
                         val savedEmail = sharedPreferences.getString("user_email", null)
                         val savedExpiresIn = sharedPreferences.getLong("saved_expires_in", 0L)
 
                         if (!savedToken.isNullOrEmpty() && !savedEmail.isNullOrEmpty()) {
-                            // Восстанавливаем сессию в ViewModel
                             mainViewModel.restoreSession(savedEmail, savedToken, savedExpiresIn)
-
-                            // ✅ ИСПРАВЛЕНИЕ: Загружаем статус онбординга с сервера после восстановления сессии
-                            // Это необходимо для корректного определения начального экрана
                             onboardingViewModel.loadOnboardingStatus(savedToken)
                         }
                     }
 
-                    // Определение начального экрана
                     val startDestination = when {
-                        isFirstLaunch -> "onboarding"           // ПЕРВЫЙ ЗАПУСК → Онбординг
-                        currentUser == null -> "login"          // Не авторизован → Логин
-                        !onboardingCompleted -> "onboarding"    // Онбординг не пройден → Онбординг
-                        else -> "profile"                       // Все готово → ЛИЧНЫЙ КАБИНЕТ
+                        isFirstLaunch -> "onboarding"
+                        currentUser == null -> "login"
+                        !onboardingCompleted -> "onboarding"
+                        else -> "profile"
                     }
 
                     NavHost(
                         navController = navController,
                         startDestination = startDestination
                     ) {
-                        // Экран входа
                         composable("login") {
                             LoginScreen(
                                 viewModel = mainViewModel,
                                 onNavigateToRegister = { navController.navigate("register") },
                                 onLoginSuccess = {
-                                    // Загружаем статус онбординга с сервера перед переходом
                                     val token = mainViewModel.token
                                     if (token.isNotEmpty()) {
-                                        onboardingViewModel.loadOnboardingStatus(token)
+                                        // === ИСПРАВЛЕНИЕ: Если онбординг пройден локально, сохраняем его на сервере ===
+                                        if (onboardingViewModel.onboardingCompleted.value) {
+                                            onboardingViewModel.completeOnboarding(token)
+                                        } else {
+                                            onboardingViewModel.loadOnboardingStatus(token)
+                                        }
                                     }
-                                    // После входа всегда переходим в личный кабинет
                                     navController.navigate("profile") {
                                         popUpTo("login") { inclusive = true }
                                     }
@@ -111,18 +107,20 @@ class MainActivity : ComponentActivity() {
                             )
                         }
 
-                        // Экран регистрации
                         composable("register") {
                             RegisterScreen(
                                 viewModel = mainViewModel,
                                 onNavigateBack = { navController.popBackStack() },
                                 onRegisterSuccess = {
-                                    // Проверяем статус онбординга с сервера
                                     val token = mainViewModel.token
                                     if (token.isNotEmpty()) {
-                                        onboardingViewModel.loadOnboardingStatus(token)
+                                        // === ИСПРАВЛЕНИЕ: Аналогичная логика для регистрации ===
+                                        if (onboardingViewModel.onboardingCompleted.value) {
+                                            onboardingViewModel.completeOnboarding(token)
+                                        } else {
+                                            onboardingViewModel.loadOnboardingStatus(token)
+                                        }
                                     }
-                                    // После регистрации переходим в личный кабинет
                                     navController.navigate("profile") {
                                         popUpTo("register") { inclusive = true }
                                     }
@@ -130,7 +128,6 @@ class MainActivity : ComponentActivity() {
                             )
                         }
 
-                        // Экран онбординга
                         composable("onboarding") {
                             OnboardingScreen(
                                 mainViewModel = mainViewModel,
@@ -139,14 +136,11 @@ class MainActivity : ComponentActivity() {
 
                                     when (selectedPlan) {
                                         "monthly", "yearly" -> {
-                                            // Платная подписка: переход на экран регистрации и оплаты
                                             navController.navigate("register_and_payment/$selectedPlan") {
                                                 popUpTo("onboarding") { inclusive = true }
                                             }
                                         }
                                         else -> {
-                                            // Демо-версия: если пользователь не авторизован — на экран входа,
-                                            // иначе — сразу в профиль
                                             if (currentUser == null) {
                                                 navController.navigate("login") {
                                                     popUpTo("onboarding") { inclusive = true }
@@ -162,49 +156,6 @@ class MainActivity : ComponentActivity() {
                             )
                         }
 
-                        // Экран регистрации для активации демо-версии
-                        composable("register_for_demo") {
-                            RegisterForDemoScreen(
-                                mainViewModel = mainViewModel,
-                                onboardingViewModel = onboardingViewModel,
-                                onDemoActivated = {
-                                    markOnboardingCompleted()
-                                    navController.navigate("home") {
-                                        popUpTo("register_for_demo") { inclusive = true }
-                                    }
-                                },
-                                onNavigateBack = { navController.popBackStack() }
-                            )
-                        }
-
-                        // Экран регистрации и оплаты подписки
-                        composable(
-                            route = "register_and_payment/{plan}",
-                            arguments = listOf(navArgument("plan") { type = NavType.StringType })
-                        ) { backStackEntry ->
-                            val plan = backStackEntry.arguments?.getString("plan") ?: "monthly"
-                            RegisterAndPaymentScreen(
-                                plan = plan,
-                                mainViewModel = mainViewModel,
-                                billingManager = billingManager,
-                                onPaymentSuccess = {
-                                    // ✅ ИСПРАВЛЕНИЕ: Сохраняем данные онбординга на сервере после успешной оплаты
-                                    // Это необходимо, чтобы пользователь мог использовать агентов
-                                    val token = mainViewModel.token
-                                    if (token.isNotEmpty()) {
-                                        onboardingViewModel.completeOnboarding(token)
-                                    }
-
-                                    markOnboardingCompleted()
-                                    navController.navigate("profile") {
-                                        popUpTo("register_and_payment/$plan") { inclusive = true }
-                                    }
-                                },
-                                onBack = { navController.popBackStack() }
-                            )
-                        }
-
-                        // Главный экран
                         composable("home") {
                             HomeScreen(
                                 onNavigateToCatalog = { navController.navigate("catalog") },
@@ -216,7 +167,6 @@ class MainActivity : ComponentActivity() {
                             )
                         }
 
-                        // Экран профиля
                         composable("profile") {
                             ProfileScreen(
                                 viewModel = mainViewModel,
@@ -234,7 +184,6 @@ class MainActivity : ComponentActivity() {
                             )
                         }
 
-                        // Каталог агентов
                         composable("catalog") {
                             AgentCatalogScreen(
                                 viewModel = mainViewModel,
@@ -246,7 +195,6 @@ class MainActivity : ComponentActivity() {
                             )
                         }
 
-                        // Мои агенты
                         composable("my_agents") {
                             MyAgentsScreen(
                                 viewModel = mainViewModel,
@@ -257,7 +205,6 @@ class MainActivity : ComponentActivity() {
                             )
                         }
 
-                        // Редактирование агента
                         composable(
                             route = "edit_agent/{agentId}",
                             arguments = listOf(navArgument("agentId") { type = NavType.StringType })
@@ -278,7 +225,6 @@ class MainActivity : ComponentActivity() {
                             }
                         }
 
-                        // Создание агента
                         composable("create_agent") {
                             CreateAgentScreen(
                                 viewModel = mainViewModel,
@@ -287,7 +233,6 @@ class MainActivity : ComponentActivity() {
                             )
                         }
 
-                        // Вызов агента
                         composable("invoke") {
                             InvokeAgentScreen(
                                 viewModel = mainViewModel,
@@ -295,7 +240,6 @@ class MainActivity : ComponentActivity() {
                             )
                         }
 
-                        // Оркестрация
                         composable("orchestrate") {
                             OrchestrationScreen(
                                 viewModel = mainViewModel,

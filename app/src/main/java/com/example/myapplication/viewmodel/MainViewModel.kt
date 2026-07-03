@@ -36,16 +36,15 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
     val isPremium: StateFlow<Boolean> = MutableStateFlow(true)
 
     private val _userProfile = MutableStateFlow<ProfileResponse?>(null)
+    val userProfile: StateFlow<ProfileResponse?> = _userProfile
 
     private val _userBalance = MutableStateFlow(0.0)
     val userBalance: StateFlow<Double> = _userBalance
 
-    val userProfile: StateFlow<ProfileResponse?> = _userProfile
-
-    // ===== ДОБАВЛЕНО: Публичный доступ к токену авторизации =====
+    // ===== Публичный доступ к токену авторизации =====
     val token: String
         get() = _currentUser.value?.token ?: ""
-    // =============================================================
+    // ================================================
 
     val expiresIn: Any
         get() = _currentUser.value?.expiresIn ?: Long
@@ -70,6 +69,8 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
             result.fold(
                 onSuccess = { response ->
                     _currentUser.value = User(email = response.email, token = response.token, expiresIn = System.currentTimeMillis() + response.expiresIn * 1000L)
+                    loadProfile() // <-- ИСПРАВЛЕНИЕ: Загружаем профиль после регистрации
+                    loadBalance() // <-- ИСПРАВЛЕНИЕ: Загружаем баланс после регистрации
                 },
                 onFailure = { e ->
                     _authError.value = e.message ?: "Registration error"
@@ -79,9 +80,6 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
         }
     }
 
-    /**
-     * Оформление подписки - списание средств и активация
-     */
     fun subscribe(planType: String, onResult: (Boolean, String) -> Unit) {
         viewModelScope.launch {
             val token = _currentUser.value?.token ?: return@launch
@@ -109,6 +107,11 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
                     _currentUser.value = User(
                         email = response.email, token = response.token,
                         expiresIn = System.currentTimeMillis() + response.expiresIn * 1000L)
+
+                    // === ИСПРАВЛЕНИЕ: Загружаем профиль и баланс сразу после успешного логина ===
+                    loadProfile()
+                    loadBalance()
+                    // ===========================================================================
                 },
                 onFailure = { e ->
                     _authError.value = e.message ?: "Login error"
@@ -118,11 +121,7 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
         }
     }
 
-    /**
-     * Восстановление сессии пользователя из локального хранилища
-     * без повторного запроса к серверу.
-     */
-        fun restoreSession(email: String?, token: String?, expiresIn: Long?) {
+    fun restoreSession(email: String?, token: String?, expiresIn: Long?) {
         if (!email.isNullOrBlank() && !token.isNullOrBlank() &&
             expiresIn != null && expiresIn > System.currentTimeMillis()) {
 
@@ -131,11 +130,10 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
                 token = token,
                 expiresIn = expiresIn
             )
-            // Опционально: загрузить профиль/баланс после восстановления
             loadProfile()
+            loadBalance() // <-- ИСПРАВЛЕНИЕ: Добавлен вызов loadBalance()
         } else {
             _currentUser.value = null
-            // Очистка, если токен истёк
         }
     }
 
@@ -147,8 +145,6 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
             result.onSuccess { response ->
                 _userProfile.value = response
                 _userBalance.value = response.balance
-                // ← УБРАНЫ рекурсивные вызовы loadProfile() и loadBalance()
-                // ← УБРАН ложный _topupSuccess.emit()
             }
             result.onFailure { _authError.value = it.message }
             _isLoading.value = false
@@ -161,8 +157,6 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
             val result = withContext(Dispatchers.IO) { repository.getBalance(token) }
             result.onSuccess { response ->
                 _userBalance.value = response.balance
-                // ← УБРАНЫ рекурсивные вызовы loadProfile() и loadBalance()
-                // ← УБРАН ложный _topupSuccess.emit()
             }
             result.onFailure { _authError.value = it.message }
         }
@@ -193,7 +187,7 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
             val request = ProfileUpdateRequest(newPassword, cardToken, cardMask)
             val result = withContext(Dispatchers.IO) { repository.updateProfile(token, request) }
             if (result.isSuccess) {
-                loadProfile() // Перезагружаем данные с сервера
+                loadProfile()
             }
             result.onFailure { _profileActionError.value = it.message }
             _isLoading.value = false
@@ -205,14 +199,13 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
             val token = _currentUser.value?.token ?: return@launch
             _isLoading.value = true
             val result = withContext(Dispatchers.IO) { repository.deleteProfile(token) }
-            result.onSuccess { logout() } // Очищаем локальный стейт и возвращаем на экран логина
+            result.onSuccess { logout() }
             result.onFailure { _profileActionError.value = it.message }
             _isLoading.value = false
         }
     }
 
     fun logout() {
-        // Остановить опрос, если активен
         pollingJob?.cancel()
         _currentUser.value = null
         _agentsCatalog.value = emptyList()
@@ -234,8 +227,6 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
 
     private val _agentRegistrationSuccess = MutableSharedFlow<Boolean>()
     val agentRegistrationSuccess: SharedFlow<Boolean> = _agentRegistrationSuccess
-
-
 
     fun loadAgentsCatalog() {
         viewModelScope.launch {
@@ -309,8 +300,8 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
     private val _selectedAgentForInvoke = MutableStateFlow<Agent?>(null)
     val selectedAgentForInvoke: StateFlow<Agent?> = _selectedAgentForInvoke
 
-    private val _invokeResult = MutableStateFlow<String?>(null)
-    val invokeResult: StateFlow<String?> = _invokeResult
+    private val _invokeResult = MutableStateFlow<Any?>(null)
+    val invokeResult: StateFlow<Any?> = _invokeResult
 
     fun setSelectedAgent(agent: Agent?) {
         _selectedAgentForInvoke.value = agent
@@ -326,7 +317,7 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
             }
             result.onSuccess {
                 _invokeResult.value = it
-                loadBalance() // Обновляем баланс после вызова
+                loadBalance()
             }
             result.onFailure { e -> _authError.value = e.message }
             _isLoading.value = false
@@ -337,8 +328,8 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
     private val _orchestrateChain = MutableStateFlow<List<String>>(emptyList())
     val orchestrateChain: StateFlow<List<String>> = _orchestrateChain
 
-    private val _orchestrateResult = MutableStateFlow<String?>(null)
-    val orchestrateResult: StateFlow<String?> = _orchestrateResult
+    private val _orchestrateResult = MutableStateFlow<Any?>(null)
+    val orchestrateResult: StateFlow<Any?> = _orchestrateResult
 
     private val _orchestrateTaskId = MutableStateFlow<String?>(null)
     val orchestrateTaskId: StateFlow<String?> = _orchestrateTaskId
@@ -435,7 +426,7 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
         pollingJob?.cancel()
         pollingJob = viewModelScope.launch {
             while (true) {
-                delay(2000.milliseconds) // опрос каждые 2 секунды
+                delay(2000.milliseconds)
                 val token = _currentUser.value?.token ?: break
                 val statusResult = withContext(Dispatchers.IO) {
                     repository.getTaskStatus(token, taskId)

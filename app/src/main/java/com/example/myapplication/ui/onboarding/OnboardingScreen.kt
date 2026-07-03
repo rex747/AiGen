@@ -182,8 +182,10 @@ fun OnboardingScreen(
                         selectedPlan = selectedPlan,
                         onPlanSelected = { plan -> viewModel.setSelectedPlan(plan) },
                         onComplete = {
-                            val token = mainViewModel.token
-                            //viewModel.completeOnboarding(token)
+                            // === ИСПРАВЛЕНИЕ: Помечаем онбординг как пройденный локально ===
+                            // Вызов completeOnboarding(token) убран, так как токен может быть пустым.
+                            // Сохранение на сервере произойдет в MainActivity после логина/регистрации.
+                            viewModel.markOnboardingAsPassedLocally()
                             onOnboardingComplete(viewModel.selectedPlan.value)
                         }
                     )
