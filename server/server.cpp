@@ -650,6 +650,7 @@ namespace JWT {
             jwt::verify()
                 .allow_algorithm(jwt::algorithm::hs256{ Config::JWT_SECRET })
                 .with_issuer("secure-auth-server")
+                .leeway(60)
                 .verify(decoded);
             // проверка expiration вручную на всякий случай
             if (decoded.get_expires_at() < std::chrono::system_clock::now()) {
