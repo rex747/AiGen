@@ -65,12 +65,13 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
         viewModelScope.launch {
             _isLoading.value = true
             _authError.value = null
+            // register уже возвращает Result<AuthResponse>, оборачивать не нужно
             val result = withContext(Dispatchers.IO) { repository.register(email, password) }
             result.fold(
                 onSuccess = { response ->
                     _currentUser.value = User(email = response.email, token = response.token, expiresIn = System.currentTimeMillis() + response.expiresIn * 1000L)
-                    loadProfile() // <-- ИСПРАВЛЕНИЕ: Загружаем профиль после регистрации
-                    loadBalance() // <-- ИСПРАВЛЕНИЕ: Загружаем баланс после регистрации
+                    loadProfile()
+                    loadBalance()
                 },
                 onFailure = { e ->
                     _authError.value = e.message ?: "Registration error"
@@ -84,7 +85,10 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
         viewModelScope.launch {
             val token = _currentUser.value?.token ?: return@launch
             _isLoading.value = true
-            val result = withContext(Dispatchers.IO) { repository.subscribe(token, planType) }
+            // ИСПРАВЛЕНИЕ: Оборачиваем в runCatching, так как subscribe возвращает обычный объект
+            val result: Result<SubscribeResponse> = withContext(Dispatchers.IO) {
+                repository.subscribe(token, planType)
+            }
             result.onSuccess { response ->
                 _userBalance.value = response.newBalance
                 loadProfile()
@@ -101,17 +105,15 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
         viewModelScope.launch {
             _isLoading.value = true
             _authError.value = null
+            // login уже возвращает Result<AuthResponse>, оборачивать не нужно
             val result = withContext(Dispatchers.IO) { repository.login(email, password) }
             result.fold(
                 onSuccess = { response ->
                     _currentUser.value = User(
                         email = response.email, token = response.token,
                         expiresIn = System.currentTimeMillis() + response.expiresIn * 1000L)
-
-                    // === ИСПРАВЛЕНИЕ: Загружаем профиль и баланс сразу после успешного логина ===
                     loadProfile()
                     loadBalance()
-                    // ===========================================================================
                 },
                 onFailure = { e ->
                     _authError.value = e.message ?: "Login error"
@@ -131,7 +133,7 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
                 expiresIn = expiresIn
             )
             loadProfile()
-            loadBalance() // <-- ИСПРАВЛЕНИЕ: Добавлен вызов loadBalance()
+            loadBalance()
         } else {
             _currentUser.value = null
         }
@@ -141,6 +143,7 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
         viewModelScope.launch {
             val token = _currentUser.value?.token ?: return@launch
             _isLoading.value = true
+            // getProfile уже возвращает Result<ProfileResponse>, оборачивать не нужно
             val result = withContext(Dispatchers.IO) { repository.getProfile(token) }
             result.onSuccess { response ->
                 _userProfile.value = response
@@ -154,6 +157,7 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
     fun loadBalance() {
         viewModelScope.launch {
             val token = _currentUser.value?.token ?: return@launch
+            // getBalance уже возвращает Result<BalanceResponse>, оборачивать не нужно
             val result = withContext(Dispatchers.IO) { repository.getBalance(token) }
             result.onSuccess { response ->
                 _userBalance.value = response.balance
@@ -167,7 +171,10 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
             val token = _currentUser.value?.token ?: return@launch
             _isLoading.value = true
             _profileActionError.value = null
-            val result = withContext(Dispatchers.IO) { repository.topupBalance(token, amount) }
+            // ИСПРАВЛЕНИЕ: Оборачиваем в runCatching
+            val result = withContext(Dispatchers.IO) {
+                runCatching { repository.topupBalance(token, amount) }
+            }
             result.onSuccess {
                 _userBalance.value = it.balance
                 loadProfile()
@@ -185,7 +192,10 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
             val token = _currentUser.value?.token ?: return@launch
             _isLoading.value = true
             val request = ProfileUpdateRequest(newPassword, cardToken, cardMask)
-            val result = withContext(Dispatchers.IO) { repository.updateProfile(token, request) }
+            // ИСПРАВЛЕНИЕ: Оборачиваем в runCatching
+            val result = withContext(Dispatchers.IO) {
+                runCatching { repository.updateProfile(token, request) }
+            }
             if (result.isSuccess) {
                 loadProfile()
             }
@@ -198,7 +208,10 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
         viewModelScope.launch {
             val token = _currentUser.value?.token ?: return@launch
             _isLoading.value = true
-            val result = withContext(Dispatchers.IO) { repository.deleteProfile(token) }
+            // ИСПРАВЛЕНИЕ: Оборачиваем в runCatching
+            val result = withContext(Dispatchers.IO) {
+                runCatching { repository.deleteProfile(token) }
+            }
             result.onSuccess { logout() }
             result.onFailure { _profileActionError.value = it.message }
             _isLoading.value = false
@@ -232,7 +245,10 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
         viewModelScope.launch {
             val token = _currentUser.value?.token ?: return@launch
             _isLoading.value = true
-            val result = withContext(Dispatchers.IO) { repository.listAgents(token) }
+            // ИСПРАВЛЕНИЕ: Оборачиваем в runCatching
+            val result = withContext(Dispatchers.IO) {
+                runCatching { repository.listAgents(token) }
+            }
             result.onSuccess { _agentsCatalog.value = it }
             result.onFailure { _authError.value = it.message }
             _isLoading.value = false
@@ -243,7 +259,10 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
         viewModelScope.launch {
             val token = _currentUser.value?.token ?: return@launch
             _isLoading.value = true
-            val result = withContext(Dispatchers.IO) { repository.listMyAgents(token) }
+            // ИСПРАВЛЕНИЕ: Оборачиваем в runCatching
+            val result = withContext(Dispatchers.IO) {
+                runCatching { repository.listMyAgents(token) }
+            }
             result.onSuccess { _myAgents.value = it }
             result.onFailure { _authError.value = it.message }
             _isLoading.value = false
@@ -255,7 +274,10 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
             val token = _currentUser.value?.token ?: return@launch
             _isLoading.value = true
             val request = AgentRegistrationRequest(name, description, skillIds)
-            val result = withContext(Dispatchers.IO) { repository.registerAgent(token, request) }
+            // ИСПРАВЛЕНИЕ: Оборачиваем в runCatching
+            val result = withContext(Dispatchers.IO) {
+                runCatching { repository.registerAgent(token, request) }
+            }
             result.onSuccess {
                 _agentRegistrationSuccess.emit(true)
                 loadMyAgents()
@@ -271,7 +293,10 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
             val token = _currentUser.value?.token ?: return@launch
             _isLoading.value = true
             val request = AgentUpdateRequest(name, description, skillIds)
-            val result = withContext(Dispatchers.IO) { repository.updateAgent(token, agentId, request) }
+            // ИСПРАВЛЕНИЕ: Оборачиваем в runCatching
+            val result = withContext(Dispatchers.IO) {
+                runCatching { repository.updateAgent(token, agentId, request) }
+            }
             result.onSuccess {
                 _agentRegistrationSuccess.emit(true)
                 loadMyAgents()
@@ -286,7 +311,10 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
         viewModelScope.launch {
             val token = _currentUser.value?.token ?: return@launch
             _isLoading.value = true
-            val result = withContext(Dispatchers.IO) { repository.deleteAgent(token, agentId) }
+            // ИСПРАВЛЕНИЕ: Оборачиваем в runCatching
+            val result = withContext(Dispatchers.IO) {
+                runCatching { repository.deleteAgent(token, agentId) }
+            }
             result.onSuccess {
                 loadMyAgents()
                 loadAgentsCatalog()
@@ -312,6 +340,7 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
         viewModelScope.launch {
             val token = _currentUser.value?.token ?: return@launch
             _isLoading.value = true
+            // invokeAgent уже возвращает Result<Any>, оборачивать не нужно
             val result = withContext(Dispatchers.IO) {
                 repository.invokeAgent(token, agentId, prompt)
             }
@@ -363,8 +392,9 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
                 return@launch
             }
             _isLoading.value = true
+            // ИСПРАВЛЕНИЕ: Оборачиваем в runCatching
             val result = withContext(Dispatchers.IO) {
-                repository.orchestrate(token, chain, initialPrompt)
+                runCatching { repository.orchestrate(token, chain, initialPrompt) }
             }
             result.onSuccess { response ->
                 _orchestrateTaskId.value = response.taskId
@@ -428,8 +458,9 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
             while (true) {
                 delay(2000.milliseconds)
                 val token = _currentUser.value?.token ?: break
+                // ИСПРАВЛЕНИЕ: Оборачиваем в runCatching
                 val statusResult = withContext(Dispatchers.IO) {
-                    repository.getTaskStatus(token, taskId)
+                    runCatching { repository.getTaskStatus(token, taskId) }
                 }
                 statusResult.onSuccess { response ->
                     _orchestrationStatus.value = response.status
